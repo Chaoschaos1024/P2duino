@@ -1,0 +1,73 @@
+'' Tests for ESP32 TL2 commands.
+CON
+  _clkfreq = 200_000_000
+  baud = 115200
+  rxpin = 3
+  txpin = 4
+OBJ
+  com0: "jm_serial"
+  esp32: "esp32_core"
+  wifi: "esp32_wifi"
+  tcpip: "esp32_tcpip"
+  beta: "esp32_tcpip_tl2_beta"
+
+DAT
+  ssid byte "RobotsEverywhere", 0
+  pwd byte "Uchr0nia", 0
+PUB start() | scratch, strs
+  com0.start(baud) ' USB com
+  com0.str(string("TEST", 13, 10))
+            
+  scratch := esp32.init(rxpin, txpin)
+  com0.str(esp32.getSyncResponse())
+  waitms(10)
+  if(scratch)
+    OUTA[56] := 1
+    DIRA[56] := 1
+
+  esp32.echo(true) 
+  repeat
+    testWifiConnectToAP()
+    testTCPServer()
+
+PRI testSetWifiStation() | okay
+  okay := wifi.setWifiStationMode()
+  if(okay)
+    com0.str(string("Wifi in station mode.", 13, 10))
+
+PRI testWifiConnectToAP(): okay
+  com0.str(string("Starting test, restarting esp32", 13, 10))
+  esp32.forceReset()
+  waitms(3000)
+  esp32.echo(true) ' turn echo back on after restart?    
+  testSetWifiStation()
+  okay := wifi.connectToAP(@ssid, @pwd)
+  if(okay <> 0)
+    com0.str(string("ERROR: CONNECTING TO AP FAIL", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    waitms(100)
+    return
+  else
+    com0.str(string("Connect started", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    okay := -1
+    com0.str(string("Waiting for input", 13, 10))
+    repeat until okay <> -1
+      okay := com0.rxcheck()
+      waitms(10)
+      com0.str(esp32.getMessage())
+  okay := tcpip.getStationIPAddress()
+
+PRI testTCPServer()|okay
+  com0.str(string("Starting TCP server", 13, 10))
+  esp32.echo(true)
+  tcpip.enableMultipleConnections()
+  okay := beta.startTCPServer(80)
+  com0.str(esp32.getSyncResponse())
+  repeat
+    com0.str(esp32.getMessage())
+PRI crlf()
+  com0.tx(13)
+  com0.tx(10)
+   

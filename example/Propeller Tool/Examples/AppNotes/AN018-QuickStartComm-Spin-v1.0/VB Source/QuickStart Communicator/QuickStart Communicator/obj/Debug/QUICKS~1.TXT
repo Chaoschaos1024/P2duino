@@ -1,0 +1,10 @@
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\bin\Debug\QuickStart Communicator.exe
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\bin\Debug\QuickStart Communicator.pdb
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\bin\Debug\QuickStart Communicator.xml
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\obj\Debug\ResolveAssemblyReference.cache
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\obj\Debug\QuickStart_Communicator.Resources.resources
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\obj\Debug\QuickStart Communicator.vbproj.GenerateResource.Cache
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\obj\Debug\QuickStart Communicator.exe
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\obj\Debug\QuickStart Communicator.xml
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\obj\Debug\QuickStart Communicator.pdb
+C:\Users\csavage\Documents\Visual Studio 2008\Projects\QuickStart Communicator\QuickStart Communicator\obj\Debug\QuickStart_Communicator.frmMain.resources

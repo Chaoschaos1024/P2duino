@@ -1,0 +1,55 @@
+_clkfreq = 10_000_000
+
+VAR buff[256]
+
+PUB go() | Phase, Head, Tail, HeadPtr, HeadData, TailPtr, TailData
+
+  'Configure PLOT
+  debug("`plot p pos 330 1600 size 350 350 update")
+  debug("`p offset 175 175 polar -256 textsize 14 textstyle 1")
+
+  'Configure SCOPE
+  debug("`scope s pos 700 1600 size 700 410 samples 701 rate 1 linesize 3 textsize 12")
+  debug("`s 'HeadData' -10000 10000 170 220 15 $FF0000")
+  debug("`s 'TailData' -10000 10000 170 20 15 $00FF00")
+
+  'Configure FFT
+  debug("`fft f pos 40 1600 size 256 200 samples 256 rate 1 textsize 12 logscale")
+  debug("`f 'TailData' 0 10000 170 15 15")
+
+  'Configure SPECTRO
+  debug("`spectro t pos 380 1983 depth 300 samples 256 rate 10 luma8x %100 mag 0 range 1000 logscale")
+  waitms(200)
+
+  'Demonstrate concept
+  repeat
+
+    'Write head data into buffer
+    HeadPtr := Head & $FF
+    HeadData,_ := polxy(10000, phase += $01B9_0000)
+    buff[HeadPtr] := HeadData
+
+    TailPtr := Tail >> 8 & $FF
+    TailData := buff[tailptr]
+
+    'Update PLOT
+    debug("`p clear")
+    debug("`p text 150 -64 20 3 $FFFF00 'Simple Pitchbend'")
+    debug("`p text 150 64 14 1 $404040 'Circular Buffer'")
+    debug("`p linesize 3 linecolor $404040 oval 0 0 256 256")
+    debug("`p linesize 6 linecolor $FF0000 0 0 to 128 ", sdec_(HeadPtr), " text 'Head'")
+    debug("`p linecolor $00FF00 0 0 to 128 ", sdec_(TailPtr), " text 'Tail'")
+    debug("`p update")
+
+    'Update SCOPE
+    debug("`s ", sdec_(HeadData, TailData))
+
+    'Update FFT and SPECTRO
+    debug("`f t ", sdec_(TailData))
+
+    'Slow down
+    waitms(20)
+
+    'Update head and tail
+    head++
+    tail += 407-300

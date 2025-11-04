@@ -1,0 +1,57 @@
+pinbase		=	8
+
+left		=	pinbase+6
+right		=	pinbase+7
+
+freql		=	432.0		'left frequency
+freqr		=	440.0		'right frequency
+
+volume		=	$1000		'$0000..$7FFF volume
+
+_clkfreq	=	256_000_000
+
+
+dat	org
+
+	asmclk
+
+	wrpin	dac,#left
+	wxpin	#256,#left
+
+	wrpin	dac,#right
+	wxpin	#256,#right
+
+	dirh	#left addpins 1
+
+	setse1	#%001<<6 + left
+
+.loop	add	p1,f1		'calculate right sample
+	qrotate	amp,p1
+	getqx	x
+	bitnot	x,#15
+	wypin	x,#left
+
+	add	p2,f2		'calculate left sample
+	qrotate	amp,p2
+	getqx	x
+	bitnot	x,#15
+	wypin	x,#right
+
+	waitse1			'wait for new period
+
+	jmp	#.loop		'loop
+
+
+
+x	long	0
+
+p1	long	0
+p2	long	0
+
+f1	long	round(freql * 65536.0 * 65536.0 * 256.0 / float(clkfreq_))
+f2	long	round(freqr * 65536.0 * 65536.0 * 256.0 / float(clkfreq_))
+
+amp	long	volume
+
+'dac	long	%10111_00000000_01_00010_0	'random dither (noisier, needs no period)
+dac	long	%10111_00000000_01_00011_0	'pwm (quieter, needs 256N period)

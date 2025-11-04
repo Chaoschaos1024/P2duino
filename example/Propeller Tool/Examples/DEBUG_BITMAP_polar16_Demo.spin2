@@ -1,0 +1,16 @@
+CON             _clkfreq        = 250_000_000
+
+PUB go() | i
+
+  debug("`bitmap x title '8-bit LUMA8X mode' pos 0 0 size 256 20 luma8x %011")
+  debug("`bitmap a title '8-bit RGBI8X mode' pos 0 60 size 32 8 dotsize 16 rgbi8x")
+  debug("`bitmap b title '16-bit HSV16 mode' pos 0 220 size 256 256 trace 4 hsv16")
+  debug("`bitmap c title '16-bit HSV16W mode' pos 272 220 size 256 256 trace 4 hsv16w")
+  debug("`bitmap d title '16-bit HSV16X mode' pos 544 220 size 256 256 trace 4 hsv16x", dly(300))
+  repeat i from 0 to 256 * 20 - 1
+    debug("`x ", uhex_(i))
+    debug("`a ", uhex_(i))
+  repeat i from 0 to 65535
+    debug("`b ", uhex_(i))
+    debug("`c ", uhex_(i))
+    debug("`d ", uhex_(i))

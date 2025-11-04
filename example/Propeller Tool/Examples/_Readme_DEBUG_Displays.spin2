@@ -1,0 +1,305 @@
+{
+To instantiate a display type:
+
+DEBUG("`DISPLAY_TYPE name {configurations and values}")
+
+To feed a display {or more than one display}:
+
+DEBUG("`name {name name ...} value value value keyword value etc")
+
+
+Display types:
+
+LOGIC		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SAMPLES sample_depth		'default is 32
+			SPACING spacing_1_to_64		'default is 8
+			RATE update_rate		'default is 1
+			'label' bitcount color		'establish channel(s)
+			LINESIZE line_size_1_to_7	'default is 1
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color_rrggbb		'default is black
+			GRIDCOLOR color_rrggbb		'default is grey
+			PACKEDxxxx			'set packed data mode for efficiency
+
+		feed:	data				'numerical data for channels 0..31
+			TRIGGER maskvalue matchvalue sample_offset		'set up triggering
+			CLEAR				'clear display
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+SCOPE		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE scope_x_size scope_y_size	'default is 256 256
+			SAMPLES sample_depth		'default is 256
+			RATE update_rate		'default is 1
+			DOTSIZE dot_size_0_to_7		'default is 0
+			LINESIZE line_size_0_to_7	'default is 1
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color_rrggbb		'default is black
+			GRIDCOLOR color_rrggbb		'default is grey
+			PACKEDxxxx			'set packed data mode for efficiency
+
+		feed:	ch0 ch1 ch2 ...			'numerical data for channels 0..7max, repeating
+			'label' botvalue topvalue height_y offset_y grid_4_bits color_rrggbb		'assign channel, starting at channel 0
+			TRIGGER channel_0_to_7 arming_value triggering_value sample_offset		'set up triggering
+			CLEAR				'clear display
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+SCOPE_XY	config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE scope_xy_size		'default is 256
+			'label' color			'establish channel with optional color override
+			RANGE absvalue_range		'default is $7FFFFFFF
+			SAMPLES sample_depth		'default is 256, 0=infinite persistence
+			RATE update_rate		'default is 1
+			DOTSIZE dot_size_1_to_6		'default is 1
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color			'default is black
+			GRIDCOLOR color			'default is grey
+			POLAR {TwoPi Theta}		'switch to polar mode and optionally set TwoPi and Theta offset
+			LOGSCALE			'apply log dilation for better small-signal viewing
+			PACKEDxxxx			'set packed data mode for efficiency, theta in scope_rt is MSB-justified in packed mode
+			
+		feed:	x0 y0 x1 y1 x2 y2 ...		'numerical x,y data for channels 0..7max
+			CLEAR				'clear display
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+FFT		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE scope_x_size scope_y_size	'default is 256 256
+			SAMPLES samples first last	'default is 512, must be 4/8/16/32/64/128/256/512/1024/2048, optional first and last powers
+			RATE update_rate		'default is samples
+			DOTSIZE dot_size_0_to_7		'default is 0
+			LINESIZE line_size_neg7_to_7	'default is 1, negative for vertical lines (not connected)
+			TEXTSIZE text_size_6_to_200	'default is editor text size			
+			BACKCOLOR color_rrggbb		'default is black
+			GRIDCOLOR color_rrggbb		'default is grey
+			LOGSCALE			'apply log dilation for better small-signal viewing
+			PACKEDxxxx			'set packed data mode for efficiency
+
+		feed:	ch0 ch1 ch2 ...			'numerical data for channels 0..7max, repeating
+			'label' magexp topvalue height_y offset_y grid_4_bits color_rrggbb		'assign channel, starting at channel 0
+			CLEAR				'clear display
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+SPECTRO		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			DEPTH pixels			'default is 256
+			SAMPLES samples first last	'default is 512, must be 4/8/16/32/64/128/256/512/1024/2048, optional first and last powers
+			MAG magexp			'default is 0
+			RANGE range			'default is $7FFFFFFF
+			RATE update_rate		'default is samples
+			TRACE pixelpath			'set scroll mode, default is 7
+			DOTSIZE size_1_to_32 {y_size}	'default is 1 1
+			LUMA8 %rgb			'set luma8 mode to show energy level
+			LUMA8W %rgb			'set luma8w mode to show energy level
+			LUMA8X %rgb			'set luma8x mode to show energy level
+			HSV16 hue_offset		'set HSV16 mode to show phase and energy level
+			HSV16W hue_offset		'set HSV16W mode to show phase and energy level
+			HSV16X hue_offset		'set HSV16X mode to show phase and energy level
+			LOGSCALE			'apply log dilation for better small-signal viewing
+			PACKEDxxxx			'set packed data mode for efficiency
+
+		feed:	data				'sample data
+			CLEAR				'clear display
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+PLOT		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE x_size y_size		'default is 256 256
+			colortype {tune}
+			LUTCOLORS colors...		'set lookup table colors (used in LUT1..LUT8)
+			BACKCOLOR color			'default is black
+			UPDATE				'set 'update' mode
+
+		feed:	x y ...				'plot a point
+			TO x y ...			'draw a line
+			OFFSET x_offset y_offset	'default is 0 0
+			colortype {tune}
+			LUTCOLORS colors...		'set lookup table colors (used in LUT1..LUT8)
+			BACKCOLOR color_rrggbb		'default is black
+			LINESIZE line_size_1_to_16	'default is 1
+			LINECOLOR color_rrggbb		'set line color
+			FILLCOLOR color_rrggbb		'set fill color	
+			COLOR color			'set line and fill color		
+			RECT left bottom right top	'draw a rectangle
+			RECTFILL left bottom right top	'draw a filled rectangle
+			ORECT l b r t cw ch		'draw a rounded rectangle
+			ORECTFILL l b r t cw ch		'draw a filled rounded rectangle
+			OVAL left bottom right top	'draw an oval/circle
+			OVALFILL left bottom right top	'draw a filled oval/circle
+			POLY x0 y0 x1 y1 x2 y2 ...	'draw a polygon
+			POLYFILL x0 y0 x1 y1 x2 y2 ...	'draw a filled polygon
+			TEXTSIZE text_size_6_to_200	'default is 10			
+			TEXTSTYLE hjust2|vjust2|strikeout|underline|italic|bold		'set text style using bits 7..0
+			TEXTCOLOR color_rrggbb		'set text color
+			TEXT {x y size style color} 'string'	'draw text
+			CARTESIAN			'default mode
+			POLAR {TwoPi Theta}		'switch to polar mode and optionally set TwoPi and theta offset
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+TERM		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE columns rows		'default is 80 25
+			TEXTSIZE text_size_6_to_200	'default is current text editor size
+			TEXTCOLOR text0 back0 ...	'define text and back colors for settings 0..3
+			BACKCOLOR color			'set background color
+			UPDATE				'set 'update' mode
+
+		feed:	0 = Clear			'control characters
+			1 = Home
+			2 = Set colum, column follows
+			3 = Set row, row follows
+			4 = Set color 0
+			5 = Set color 1
+			6 = Set color 2
+			7 = Set color 3
+			8 = Backspace			'printable characters
+			9 = Tab
+			13 = New line
+			>31 = chr
+			'string'			'print string
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+BITMAP		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE x_pixels y_pixels		'default is 256 256
+			DOTSIZE size_1_to_32 {y_size}	'default is 1 1
+			colortype {tune}
+			LUTCOLORS colors...		'set lookup table colors (used in LUT1..LUT8)
+			TRACE pixelpath			'set scroll mode right/top/left/bot = 0..3, clockwise = +4, sets rate
+			RATE update_on_nth_pixel	'set update rate, -1 for full bitmap, 0/none for line, 1+ for arbitrary
+			PACKEDxxxx			'set packed data mode for efficiency
+			UPDATE				'set 'update' mode
+
+		feed:	data				'numerical pixel data
+			colortype {tune}
+			LUTCOLORS colors...		'set palette colors
+			TRACE pixelpath			'set scroll mode right/top/left/bot = 0..3, clockwise = +4, sets rate
+			RATE update_on_nth_pixel	'set update rate, -1 for full bitmap, 0/none for line, 1+ for arbitrary
+			SETXY x_pixel y_pixel		'set x,y pixel position for next data and set path
+			SCROLL x_scroll y_scroll	'scroll screen by x and y pixels
+			CLEAR				'clear display
+			UPDATE				'update display (only needed in 'update' mode)
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+MIDI		config:	TITLE 'Title String'		'override default caption
+			POS screen_x screen_y		'default is 0 0
+			SIZE 1_to_50			'default is 1
+                        RANGE first_key last_key	'set MIDI key range
+			CHANNEL 0_to_15			'MIDI channel, default is 0
+			COLOR white_keys black_keys	'key-on color
+
+		feed:	data				'midi data
+			CLEAR				'clear display
+			SAVE 'filename'			'save display as filename.bmp
+			CLOSE				'close display, frees name
+
+
+
+PARSER
+------
+SCOPE		dd_dsp
+displayname	dd_nam
+TITLE		dd_key
+{$|%}num	dd_num
+'string'	dd_str
+eol		dd_end
+
+init:
+dd_dsp
+dd_nam
+dd_key | dd_num | dd_str
+dd_end
+
+feed:
+dd_nam {dd_nam dd_nam ...}
+dd_key | dd_num | dd_str
+dd_end
+
+
+Color Types
+-----------
+LUT1				'set one-bit mode, uses palette
+LUT2				'set two-bit mode, uses palette
+LUT4				'set four-bit mode, uses palette
+LUT8				'set eight-bit mode, uses palette
+LUMA8 %rgb			'set luma8 mode
+LUMA8W %rgb			'set luma8w mode
+LUMA8X %rgb			'set luma8x mode
+HSV8 hue_offset			'set HSV8 mode
+HSV8W hue_offset		'set HSV8W mode
+HSV8X hue_offset		'set HSV8X mode
+RGBI8				'set rgbi8 mode
+RGBI8W				'set rgbi8w mode
+RGBI8X				'set rgbi8x mode
+RGB8				'set rgb8 mode
+HSV16 hue_offset		'set HSV16 mode
+HSV16W hue_offset		'set HSV16W mode
+HSV16X hue_offset		'set HSV16X mode
+RGB16				'set rgb16 mode
+RGB24				'set rgb24 mode (takes 32 bits per pixel)
+
+
+Packed Data
+-----------
+default		bits=32	count=1
+
+LONGS_1BIT	bits=1	count=32
+LONGS_2BIT	bits=2	count=16
+LONGS_4BIT	bits=4	count=8
+LONGS_8BIT	bits=8	count=4
+LONGS_16BIT	bits=16	count=2
+
+WORDS_1BIT	bits=1	count=16
+WORDS_2BIT	bits=2	count=8
+WORDS_4BIT	bits=4	count=4
+WORDS_8BIT	bits=8	count=2
+
+BYTES_1BIT	bits=1	count=8
+BYTES_2BIT	bits=2	count=4
+BYTES_4BIT	bits=4	count=2
+}
+
+add first_flag setting to string printing in ` mode
+add ` mode to pasm DEBUG
+
+new symbols:
+DEBUG_LEFT
+DEBUG_TOP
+DEBUG_WIDTH
+DEBUG_HEIGHT
+DEBUG_DISPLAY_LEFT
+DEBUG_DISPLAY_TOP
+DEBUG_LOG_SIZE
+
+
+BLACK
+ORANGE {0..7}
+BLUE {0..7}
+GREEN {0..7}
+CYAN {0..7}
+RED {0..7}
+MAGENTA {0..7}
+YELLOW {0..7}
+WHITE {0..7}

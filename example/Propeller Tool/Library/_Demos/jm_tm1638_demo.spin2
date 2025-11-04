@@ -1,0 +1,306 @@
+'' =================================================================================================
+''
+''   File....... jm_tm1638_demo.spin2
+''   Purpose.... Demostrates TM1638 driver on simple HMI modules
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 06 SEP 2020
+''
+''   {$P2}
+''
+'' =================================================================================================
+
+{
+   Code tested with:
+   -- https://www.amazon.com/HiLetgo-Digital-TM1638-Display-Arduino/dp/B01D140BT6
+   -- https://www.aliexpress.com/item/32261344664.html
+}
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }
+  SD_SDO   = 59  { O }
+  SD_SDI   = 58  { I }
+
+  SDA1     = 57  { IO }                                         ' i2c (optional)
+  SCL1     = 56  { IO }
+
+
+con { app io pins }
+
+  DIO      = 26  { IO }                                         ' to TM1638 HMI
+  CLK      = 25  { O }
+  STB      = 24  { O }
+
+
+con
+
+  #false, NO, YES
+
+  RG_LEDS  = YES                                                ' extra LEDs are red/green
+
+  #0, OFF, ON, #1, GRN, RED                                     ' LED colors
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  prng : "jm_prng"                                              '   random numbers
+  disp : "jm_tm1638"                                            '   tm1638 module
+  term : "jm_fullduplexserial"                                  ' * serial IO for terminal
+
+' * uses cog when loaded
+
+
+pub main() | x
+
+  setup()
+
+' wait_for_terminal(clear)
+
+  repeat
+    str_demo()
+    buttons_demo()
+    decimal_demo()
+    fp_decimal_demo()
+    hex_demo()
+    bin_demo()
+    cylon()
+    paint_demo()
+
+
+dat
+
+  Message       byte    " "[8], " P2 Fun", " "[8], 0
+
+
+pub str_demo() | idx
+
+'' Scroll a string through the display
+
+  disp.clear()
+
+  repeat idx from 0 to 8                                        ' scroll on (R to L)
+    disp.str(0, @Message+idx, 8)
+    waitms(200)
+
+  repeat 5                                                      ' flash
+    disp.display_off()
+    waitms(250)
+    disp.display_on(0)
+    waitms(250)
+
+  repeat idx from 8 to 0                                        ' scroll off (L to R)
+    disp.str(0, @Message+idx, 8)
+    waitms(200)
+
+
+pub buttons_demo() : pip | ctrl, t
+
+'' Read buttons
+'' -- detected press displayed on LEDs
+'' -- exits when all buttons pressed
+
+  disp.clear()
+  disp.str(0, string("button"), 7)
+
+  ctrl := 0
+
+  t := getct()
+  repeat
+    ctrl |= disp.read_buttons()                                 ' get button press
+    disp.write_leds(ctrl, ON)                                   ' update LEDs
+    disp.set_segments(7, 1 << pip)                              ' animated spinner bug
+    if (++pip == 6)
+      pip := 0
+    waitct(t += (100 * MS_001))                                 ' update every 100ms
+    if (ctrl == $FF)                                            ' all pressed?
+      quit
+
+  disp.clear()
+
+
+pub decimal_demo() : value | idx
+
+'' Show right-justified decimal
+
+  repeat idx from 1 to 8
+    value := (value * 10) + idx
+    disp.rjdec(0, value, 8, " ")
+    waitms(500)
+
+
+pub fp_decimal_demo() | t, btns, tenths
+
+'' Show fixed-point decimal in left side of display
+
+  disp.clear()
+  disp.fpdec(0, 10_0, 4, 1)                                     ' show inital time (10.0s)
+
+  t := getct()
+  repeat                                                        ' indicate waiting (S8)
+    disp.set_led(7, ON)
+    waitct(t += (50 * MS_001))
+    disp.set_led(7, OFF)
+    btns := disp.read_buttons()                                 ' check for button (S8)
+    if (btns == %10000000)
+      quit
+    else
+      waitct(t += (150 * MS_001))
+
+  t := getct()
+  repeat tenths from 10_0 to 0_0
+    disp.fpdec(0, tenths, 4, 1)                                 ' 1 digit after decimal point
+    waitct(t += (100 * MS_001))
+
+  disp.set_segments(7, 0)
+  waitms(1000)
+
+
+pub hex_demo() : value
+
+'' Show 4-digit random hex on right side of display
+
+  disp.clear()
+  disp.set_char(0, "h", NO)
+
+  repeat 10
+    value := prng.xrandomize($0000, $FFFF)
+    disp.fhex(4, value, 4)
+    waitms(500)
+
+
+pub bin_demo() | value
+
+'' Show 4-digit binary counter right side of display
+
+  disp.clear()
+  disp.set_char(0, "b", NO)
+
+  repeat value from 0 to 15
+    disp.fbin(4, value, 4)
+    waitms(500)
+
+
+pub cylon() | eye
+
+'' Run a Larsen Scanner on LEDs
+
+  disp.clear()
+  disp.str(0, string("CYLOn"), -1)
+
+  repeat 3
+    repeat eye from 0 to 6
+      if (RG_LEDS == YES)
+        disp.set_led(eye, RED)
+      else
+        disp.set_led(eye, ON)
+      waitms(125)
+      disp.set_led(eye, OFF)
+    repeat eye from 7 to 1
+      if (RG_LEDS == YES)
+        disp.set_led(eye, RED)
+      else
+        disp.set_led(eye, ON)
+      waitms(125)
+      disp.set_led(eye, OFF)
+
+  if (RG_LEDS == YES)
+    disp.set_led(0, RED)
+  else
+    disp.set_led(0, ON)
+  waitms(125)
+  disp.set_led(0, OFF)
+
+  disp.clear()
+
+
+pub paint_demo()
+
+'' Demostrates the use of RG LEDs on some modules
+'' -- control value is quarternary
+''    * 0 is off, 1 is green, 2 is red
+
+  if (RG_LEDS <> YES)
+    return
+
+  repeat 5                                                      ' red/green chaser
+    disp.paint_leds(%%21121121)
+    waitms(250)
+    disp.paint_leds(%%11211211)
+    waitms(250)
+    disp.paint_leds(%%12112112)
+    waitms(250)
+
+  disp.clear()
+
+
+pub setup()
+
+  disp.start(8, STB, CLK, DIO, 1_000_000)                       ' start tm1638 driver @ 1MHz
+  disp.display_on(0)                                            ' on at minimum brightness
+
+  term.start(RX1, TX1, %0000, BR_TERM)                          ' start terminal io
+
+
+pub wait_for_terminal(clear)
+
+  ' Download to RAM with F10
+  ' F12 to open PST
+  ' Click [Enable]
+  ' Press Enter
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    term.tx(term.CLS)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

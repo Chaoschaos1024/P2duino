@@ -1,0 +1,98 @@
+'**********************************************************************
+'*  Use microphone on A/V board to demonstrate spectrograph in DEBUG  *
+'**********************************************************************
+
+CON		av_base		= 8		'must be a multiple of 8
+		hdmi_base	= 48		'must be a multiple of 8
+
+		mic_pin		= av_base + 5
+		hdmi_pins	= hdmi_base + 7<<6
+
+		sample_buff	= $1000				'Microphone samples buffer (1024 words)
+
+		_clkfreq	= 320_000_000
+
+PUB go() | i, j, w[5]
+
+  ' Set up FFT
+  debug("`fft f pos 0 0 size 600 1200 samples 1024 0 127 rate 50 linesize 1 dotsize 4 textsize 12 logscale")
+  debug("`f 'FFT1' 0 100000 170 20 15")
+  debug("`f 'FFT2' 0 100000 170 220 15")
+  debug("`f 'FFT3' 0 100000 170 420 15")
+  debug("`f 'FFT4' 0 100000 170 620 15")
+  debug("`f 'FFTX' 0 100000 170 820 15")
+
+  ' Set up scope
+  debug("`scope s pos 623 0 size 600 1200 samples 300 rate 50 linesize 1 textsize 12")
+  debug("`s 'Sine1' -100000 100000 170 20 15")
+  debug("`s 'Sine2' -100000 100000 170 220 15")
+  debug("`s 'Sine3' -100000 100000 170 420 15")
+  debug("`s 'Sine4' -100000 100000 170 620 15")
+  debug("`s 'WaveX' -100000 100000 170 820 15", dly(100))
+
+  ' Generate waveforms
+  j~
+  repeat i from 0 to 1024 * 80 - 1
+    j += $800
+    w[0],_ := polxy(100000, i * ($04000000 + j*4))
+    w[1],_ := polxy(100000, i * ($07000000 + j*3))
+    w[2],_ := polxy(100000, i * ($0A000000 + j*2))
+    w[3],_ := polxy(100000, i * ($0D000000 + j*1))
+    w[4]   := w[0] + w[1] + w[2] + w[3]
+    debug("`f ", sdec_long_array_(@w, 5))
+    debug("`s ", sdec_long_array_(@w, 5))
+
+
+{
+
+DAT		org
+
+		asmclk						'set clock
+
+		setq	##($7FFFF - @end_of_pgm)/4		'clear hub RAM
+		wrlong	#0,##@end_of_pgm
+
+		coginit	#16,#@pgm_mic		'launch Microphone
+
+
+		waitx	##clkfreq_ / 50
+		jmp	#.loop
+
+
+'****************
+'*  Microphone  *
+'****************
+
+DAT		org
+
+pgm_mic		wrpin	##%100111_0000000_00_11000_0,#mic_pin	'set mic for 100x-mag and 14-bit SINC2 sampling
+		wxpin	#13,#mic_pin
+		dirh	#mic_pin
+
+.wait		testp	#mic_pin	wc	'wait for sample
+	if_nc	jmp	#.wait
+
+		rdpin	.x,#mic_pin		'get sample and convert to signed word (acknowledges pin)
+		shl	.x,#2
+		bitnot	.x,#15
+
+		setq2	#512-1			'load sample buffer in hub into lut at single-sample offset
+		rdlong	0,##sample_buff+2
+
+		rdlut	.y,.lastlut		'install sample in last word of buffer
+		setword	.y,.x,#1
+		wrlut	.y,.lastlut
+
+		setq2	#512-1			'write buffer back with new sample (scrolls buffer)
+		wrlong	0,##sample_buff
+
+		jmp	#.wait			'next sample
+
+' Data
+
+.lastlut	long	$1FF
+
+.x		res	1
+.y		res	1
+
+end_of_pgm}

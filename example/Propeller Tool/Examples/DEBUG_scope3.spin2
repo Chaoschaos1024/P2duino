@@ -1,0 +1,19 @@
+_clkfreq = 200_000_000
+DEBUG_LOG_SIZE = 128*1024
+
+PUB go() | i, j, k, l, m
+
+  debug("`scope zzz size 400 300 samples 400 linesize 3")
+  debug("`zzz 'Cosine' -$800000 $7FFFFF 65 128 15")
+  debug("`zzz 'Sine' -$800000 $7FFFFF 65 32 15")
+  debug("`zzz 'Sawtooth' 0 63 64 220 12")
+  debug("`zzz trigger 1 20 30 100")
+
+  repeat
+    i += 1
+    j += $04040000
+    k += $03FC0000
+    l,_ := polxy($7FFFFF,j)
+    m,_ := polxy($7FFFFF,k)
+    debug("`zzz ", sdec_(l, m, i & 63))
+    'waitms(5)

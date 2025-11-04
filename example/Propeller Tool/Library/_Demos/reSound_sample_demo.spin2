@@ -1,0 +1,66 @@
+CON
+  _clkfreq           = 250_000_000
+
+  PIN_LEFT           = 0
+  PIN_RIGHT          = 1
+
+  MAX_BUFFERSIZE     = 65536
+  MIXING_FREQ        = 88200 
+  NR_CHANNELS        = 3
+  LAST_CHANNEL       = NR_CHANNELS - 1
+  HZ                 = $8000_0000
+
+
+OBJ
+  sound: "reSound"
+
+
+VAR
+  long input[3]
+
+
+PUB reSoundSampleDemo() | i
+
+  ' Initialize reSound using a mixing rate of 88200 Hz, with 3 input channels and stereo output
+  sound.init(clkfreq, MIXING_FREQ, true, NR_CHANNELS, PIN_LEFT, PIN_RIGHT, -1, true, @resoundHubData)
+
+  ' Configure the 3 input channels using 16 bit signed format
+  repeat i from 0 to LAST_CHANNEL 
+    input[i] := sound.configureInput(0, 0, MAX_BUFFERSIZE, 0, -1& sound.SIGNED16, 0)                           
+  
+  sound.start() ' Start the reSound sound driver/mixer in one of the eight cores  
+
+  repeat    
+
+    ' 1 / 4 
+    sound.playSample(input[0], @kick,  kickLength,  1, 44100|Hz, 12000, 32768)
+    sound.playSample(input[1], @hihat, hihatLength, 1, 44100|Hz, 2000,  65535)
+    waitms(250) 
+
+    ' 2 / 4
+    sound.playSample(input[1], @hihat, hihatLength, 1, 44100|Hz, 4000,  32768)
+    waitms(250) 
+
+    ' 3 / 4
+    sound.playSample(input[0], @kick,  kickLength,  1, 44100|Hz, 12000, 32768)
+    sound.playSample(input[2], @snare, snareLength, 1, 44100|Hz, 9000,  10000)
+    sound.playSample(input[1], @hihat, hihatLength, 1, 44100|Hz, 2000,  0)
+    waitms(250) 
+
+    ' 4 / 4
+    sound.playSample(input[0], @kick,  kickLength,  1, 44100|Hz, 12000, 32768)
+    sound.playSample(input[1], @hihat, hihatLength, 1, 44100|Hz, 2000,  32768)
+    waitms(250)
+
+
+DAT
+  orgh
+  resoundHubData       long 1[32] 
+  hihat                file "hihat.raw"
+  hihatLength          long (hihatLength - hihat) / 2
+  kick                 file "kick.raw"
+  kickLength           long (kickLength - kick)   / 2 ' Length is in samples, so 16 bit means /2
+  snare                file "snare.raw"
+  snareLength          long (snareLength - snare) / 2
+
+    

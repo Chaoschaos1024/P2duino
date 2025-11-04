@@ -1,0 +1,10 @@
+CON _clkfreq = 180_000_000
+
+PUB go() | i, j
+  j := getct()
+
+  repeat i from 1 to 10_000
+    debug(udec(i))
+
+  j := getct() - j
+  debug("Time elapsed: ", udec_(j/(clkfreq/1000)), " ms")

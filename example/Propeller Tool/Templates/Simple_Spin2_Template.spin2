@@ -1,0 +1,21 @@
+{Object_Title_and_Purpose}
+
+
+CON
+  CONSTANT_NAME = 0
+
+VAR
+  long  symbol
+   
+OBJ
+  nickname      : "object_name"
+  
+PUB public_method_name()
+
+
+PRI private_method_name()
+
+
+DAT
+name    byte  "string_data",0        
+        

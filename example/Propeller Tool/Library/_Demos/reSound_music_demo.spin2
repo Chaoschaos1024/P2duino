@@ -1,0 +1,58 @@
+CON
+  _clkfreq    = 252_000_000
+
+  LEFT_PIN    = 0
+  RIGHT_PIN   = 1
+
+  MIXING_FREQ       = 196_875  ' This mixing freq is choosen to be 5 x 256 sysclocks per sample = Good sounding PWM DAC mode 
+  NR_CHANNELS       = 4        ' Protracker music modules uses 4 audio channels
+  STEREO_SEPARATION = 16384    ' 50% stereo separation
+  'STEREO_SEPARATION = 24576   ' 25% stereo separation
+
+OBJ
+
+  sound:   "reSound"        ' 1 cog
+  tracker: "trackerPlayer"  ' 0 cogs, runs in the main cog
+  
+
+VAR
+
+  long channel[NR_CHANNELS]  ' This array will contain input handles to reSound; One for each input channel
+
+
+PUB musicTrackerDemo() | i, freq, vol, pan, samPtr, samLen, loopSize, volume, filt, waitForCnt
+
+  ' Initialize reSound using a mixing frequency of "more than 4 x CD quality", with four input channels and stereo output
+  sound.init(clkfreq, MIXING_FREQ, true, NR_CHANNELS, LEFT_PIN, RIGHT_PIN, -1, false, @resoundHubData)
+
+  ' Configure each reSound input channel and store the corresponding input handle in the channel array
+  repeat i from 0 to tracker.LAST_CHANNEL                                                      
+    channel[i] := sound.configureInput(0, 0, 1<<16, 0, -1& sound.SIGNED8, 0)   ' Use 8 bit signed samples 
+
+  ' Initialize the music tracker player routine with needed frequencies, load music data and set full volume (256)
+  tracker.init(clkfreq, MIXING_FREQ, STEREO_SEPARATION, 256)                       
+  tracker.loadModule(@musicModule)
+
+  ' Start reSound and initialize the wait counter with the first CNT wait cycle state
+  sound.start()
+  waitForCnt := getct() + tracker.getCyclesToWait() 
+
+  ' Play the music!
+  repeat
+    tracker.tick() ' Tick the Protracker module play routine                                                                               
+
+    ' Iterate over the four sound channels 
+    repeat i from 0 to tracker.LAST_CHANNEL                                                    
+      tracker.getChannelParameters(i, @samPtr, @samLen, @loopSize, @freq, @vol, @pan, @filt)   ' Retrieve data for each channel from the tracker player object
+      sound.mix(channel[i], freq, vol, pan)                                                    ' Refresh reSound with frequency, volume and panning for each channel
+      sound.playSample(channel[i], samPtr, samLen, loopSize, 0, 0, 0)                          ' Trigger a reSound sample playback if any new samples needs triggering
+     
+    waitct(waitForCnt += tracker.getCyclesToWait())                                            ' Wait just the right amount of cycles before looping!
+
+  
+DAT orgh
+
+  resoundHubData    long  1[32]
+  musicModule       file  "Elekfunk.mod"
+
+    

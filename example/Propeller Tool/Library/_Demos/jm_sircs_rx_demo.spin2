@@ -1,0 +1,245 @@
+'' =================================================================================================
+''
+''   File....... jm_sircs_rx_demo.spin2   
+''   Purpose....
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 19 JUL 2020
+''
+''   {$P2} 
+''
+'' =================================================================================================
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }                                           
+                                                                 
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }                                           
+  SF_SDO   = 59  { O }                                           
+  SF_SDI   = 58  { I }                                           
+                                                                 
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }                                           
+  SD_SDI   = 59  { O }                                           
+  SD_SDO   = 58  { I }                                           
+                                                                 
+  SDA1     = 57  { IO }                                         ' i2c (optional)
+  SCL1     = 56  { IO }                                          
+                                                                 
+
+con { app io pins }
+
+  IR_SENSE = 24  { I }                                          ' ir sensor
+
+
+con
+
+  #true,  ON, OFF 
+  #false, NO, YES
+
+  
+obj
+
+' main                                                          ' * master Spin cog
+  ir   : "jm_sircs_rx"                                          ' * SIRCS decoding
+  term : "jm_serial"                                            '   serial IO for terminal    
+
+' * uses cog when loaded
+
+
+dat
+
+  Banner        byte      "=====================", 13        
+                byte      " P2 SIRCS Input Demo ", 13
+                byte      "=====================", 13
+                byte      13, 0
+
+
+var
+                                                       
+          
+pub main() | code, bits, ext, device, cmd                                                         
+                                                                 
+  setup()
+
+  wait_for_terminal(true)
+
+  term.str(@Banner)
+
+  if (ir.sensor_check())
+    term.str(string("Sensor detected", 13, 13))
+  else
+    term.str(string("Error: No sensor"))
+    repeat                                                      ' hold if no sensor
+      waitct(0)      
+
+  repeat
+    ir.enable()
+    code, bits := ir.rx()                                       ' wait for input
+
+    ext, device, cmd := code.[19..12], code.[11..7], code.[6..0]
+    
+    term.fstr1(string("%2d : "), bits)
+    case bits
+      12    : term.fstr2(string("%14.5b %.7b  "), device, cmd) 
+      15    : term.fstr2(string("%14.8b %.7b  "), device, cmd)               
+      20    : term.fstr3(string("%.8b %.5b %.7b  "), ext, device, cmd)     
+      other : term.fbin(code, 32)
+      
+    if (device == 1)                                            ' TV?
+      show_key_name(@TVkeys, cmd)
+
+    term.tx(13)
+    waitms(250)                                                 ' minimize repeats
+
+
+pub show_key_name(p_str, key) | keycode
+
+'' Print string associated with key
+'' -- p_str is pointer to list of key values and names (z-strings)
+'' -- key is the key to to search
+
+  repeat
+    keycode := byte[p_str++]                                        
+    if (keycode == key)
+      term.str(p_str)
+      quit
+    elseif (keycode == $FF)                                     ' end of list
+      quit
+    else
+      p_str += strsize(p_str) + 1                               ' skip name to next code  
+
+
+dat { tv keys }
+
+  TVkeys        byte      $00, "1 Button", 0
+                byte      $01, "2 Button", 0  
+                byte      $02, "3 Button", 0 
+                byte      $03, "4 Button", 0 
+                byte      $04, "5 Button", 0 
+                byte      $05, "6 Button", 0 
+                byte      $06, "7 Button", 0 
+                byte      $07, "8 Button", 0 
+                byte      $08, "9 Button", 0 
+                byte      $09, "0 Button", 0 
+                byte      $0B, "Enter", 0 
+                byte      $10, "Channel Up", 0 
+                byte      $11, "Channel Down", 0 
+                byte      $12, "Volume Up", 0 
+                byte      $13, "Volume Down", 0 
+                byte      $14, "Mute", 0 
+                byte      $15, "Power", 0 
+                byte      $16, "Reset TV", 0 
+                byte      $17, "Audio Mode: Mono/SAP/Stereo", 0 
+                byte      $18, "Picture Up", 0 
+                byte      $19, "Picture Down", 0 
+                byte      $1A, "Color Up", 0 
+                byte      $1B, "Color Down", 0 
+                byte      $1E, "Brightness Up", 0 
+                byte      $1F, "Brightness Down", 0 
+                byte      $20, "Hue Up", 0 
+                byte      $21, "Hue Down", 0 
+                byte      $22, "Sharpness Up", 0 
+                byte      $23, "Sharpness Down", 0 
+                byte      $24, "Select TV Tuner", 0 
+                byte      $25, "Cycle Auxillary/External Modes", 0 
+                byte      $26, "Balance Left", 0 
+                byte      $27, "Balance Right", 0 
+                byte      $29, "Surround On/Off", 0 
+                byte      $2A, "Aux/Ant", 0 
+                byte      $2F, "Power Off", 0 
+                byte      $30, "Time Display", 0 
+                byte      $36, "Sleep Timer", 0 
+                byte      $3A, "Channel Display", 0 
+                byte      $3B, "Channel Jump", 0 
+                byte      $3F, "Teletext Mode", 0 
+                byte      $40, "Select Input Video 1", 0 
+                byte      $41, "Select Input Video 2", 0 
+                byte      $42, "Select Input Video 3", 0 
+                byte      $4A, "Noise Reduction On/Off", 0 
+                byte      $4E, "Cable/Broadcast", 0 
+                byte      $4F, "Notch Filter On/Off", 0 
+                byte      $58, "PIP Channel Up", 0 
+                byte      $59, "PIP Channel Down", 0 
+                byte      $5B, "PIP On", 0 
+                byte      $5C, "Freeze Screen", 0 
+                byte      $5E, "PIP Position", 0 
+                byte      $5F, "PIP Swap", 0 
+                byte      $60, "Guide", 0 
+                byte      $61, "Video Setup", 0 
+                byte      $62, "Audio Setup", 0 
+                byte      $63, "Exit Setup", 0 
+                byte      $6B, "Auto Program", 0 
+                byte      $70, "Treble Up", 0 
+                byte      $71, "Treble Down", 0 
+                byte      $72, "Bass Up", 0 
+                byte      $73, "Bass Down", 0 
+                byte      $74, "+ Key", 0 
+                byte      $75, "- Key", 0 
+                byte      $78, "Add Channel", 0 
+                byte      $79, "Delete Channel", 0 
+                byte      $7D, "Trinitone On/Off", 0
+                byte      $FF, "Unknown", 0                     ' end of list mark
+                
+    
+pub setup()
+
+  ir.start(IR_SENSE)                                            ' start ir cog
+
+  term.start(BR_TERM)                                           ' start terminal io
+
+
+pub wait_for_terminal(clear)
+
+  ' Download to RAM with F10
+  ' F12 to open PST
+  ' Click [Enable]
+  ' Press Enter
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    term.tx(term.CLS)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

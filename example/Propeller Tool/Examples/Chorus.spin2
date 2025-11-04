@@ -1,0 +1,250 @@
+'****************************************************************************************
+'*  Use microphone and headphone amp on A/V board and MIDI input to demonstrate Chorus  *
+'****************************************************************************************
+
+CON		av_base		= 8		'must be a multiple of 8
+		mic_pin		= av_base + 5
+		left_pin	= av_base + 6
+		right_pin	= av_base + 7
+
+		midi_pin	= 16		'feed MIDI serial data into this pin
+
+		buffexp		= 14		'n = 12..17 2**n-word buffer for chorus
+
+		_clkfreq	= 300_000_000
+
+VAR
+
+  long rates[16]	'data structure used by chorus_pasm program
+  long levels[16]
+  word samples[1 << buffexp]
+
+  byte keys[128]	'data structure used by the midi_pasm program
+
+  byte bend_to_key[16]	'tracks which benders are assigned to which keys
+  byte bend_state[16]	'tracks state of each bender: 0=off, 1=level upwards, 2=level downwards
+
+
+PUB go() | i, j, k
+
+  coginit(16, @chorus_pasm, @rates)	'start Chorus PASM program
+
+  coginit(16, @midi_pasm, @keys)	'start MIDI PASM program
+
+  repeat				'main loop
+    debug(udec_byte_array(@bend_state,16))
+
+    repeat i from 0 to 15		'if any benders are assigned keys that are off, mute them
+      if not keys[bend_to_key[i]] and bend_state[i] == 1
+        bend_state[i] := 2
+
+    repeat i from 0 to 15		'ramp levels where needed
+      case bend_state[i]
+        1: levels[i] := levels[i] + $0020 <# $4000
+        2: ifnot (levels[i] := levels[i] - $0020 #> 0)
+             bend_state[i] := 0
+
+    repeat i from 36 to 84		'look for any unassigned pressed keys from C2..C6
+      if keys[i]
+        repeat k from 0 to 15		'check if a bender is already assigned to this key
+          if bend_to_key[k] == i and bend_state[k] == 1
+            quit
+        if k == 16			'if no bender is assigned, look for an unused bender
+          repeat k from 0 to 15
+  	    ifnot bend_state[k]
+              rates[k] := qexp((i - 60) * (qlog(2)/12) + (32-buffexp) << 27)	'found one, center pitch on C4
+              bend_to_key[k] := i
+              bend_state[k] := 1
+              quit
+
+
+'************
+'*  Chorus  *
+'************
+
+DAT		org
+'
+'
+' Init pointers and smart pins
+'
+chorus_pasm	mov	rates_ptr,ptra		'get point to rates and level
+
+		mov	samples_ptr,ptra	'get pointer to sample buffer
+		add	samples_ptr,#(16+16)*4
+
+		wrpin	adc_config,#mic_pin	'set mic pin for 100x-mag and 14-bit SINC2 sampling ADC
+		wxpin	#13-2,#mic_pin
+
+		wrpin	dac_config,#left_pin	'set left pin for 75-ohm, 2.0V, 16-bit, pwm-dithered DAC
+		wxpin	#256,#left_pin
+
+		wrpin	dac_config,#right_pin	'set right pin for 75-ohm, 2.0V, 16-bit, pwm-dithered DAC
+		wxpin	#256,#right_pin
+
+		dirh	#mic_pin addpins 2	'enable mic, left, and right smart pins
+'
+'
+' Main loop - sample microphone and compute 16 pitch bends (8 left, 8 right)
+'
+loop		testp	#mic_pin	wc	'wait for sample
+	if_nc	jmp	#loop
+'drvnot #0
+		wypin	left_sample,#left_pin	'output left and right samples
+		wypin	right_sample,#right_pin
+
+		rdpin	x,#mic_pin		'input microphone sample and convert to signed word (acknowledges pin)
+		bitnot	x,#13-2
+		signx	x,#13-2
+		mov	y,head			'store into circular buffer at head pointer
+		shr	y,#32-buffexp-1
+		add	y,samples_ptr
+		wrlong	x,y
+
+		add	head,headinc		'increment head pointer
+
+		setq	#(16+16) - 1		'load rates and levels
+		rdlong	rates_,rates_ptr
+
+
+		mov	left_sample,#0		'reset left and right output samples
+		mov	right_sample,#0
+
+		mov	index,#16 - 1		'ready to process 16 rates and levels
+
+bend		alts	index,#rates_		'get rate from rates array
+		mov	x,0-0
+		altd	index,#tails_		'add rate to tail in tails array
+		add	0-0,x
+		alts	index, #tails_		'get tail from tails array
+		mov	tail,0-0
+
+		call	#tail_sample		'get sample at tail
+		mov	sa,x
+		call	#tail_sample		'get sample at opposite tail
+		mov	sb,x
+
+		mov	x,head			'compute crossfade from 15 MSBs of (head - tail)
+		sub	x,tail
+		shr	x,#32-15
+		testb	x,#14		wc
+	if_c	not	x
+
+		and	x,h3FFF			'interpolate between samples according to x.[13..0]
+		scas	sa,x
+		mov	y,0-0
+		xor	x,h3FFF
+		scas	sb,x
+		add	y,0-0			'result in y
+
+		alts	index,#levels_		'attenuate sample by level
+		scas	y,0-0
+		mov	y,0-0
+
+		testb	index, #0	wc	'add sample into left (if index is even) or right (if index is odd)
+	if_nc	add	left_sample,y
+	if_c	add	right_sample,y
+'drvnot #2
+		djnf	index,#bend		'loop of more bends
+
+'drvnot #1
+		shl	left_sample,#3
+		bitnot	left_sample,#15		'unsign left and right samples
+		shl	right_sample,#3
+		bitnot	right_sample,#15
+
+		jmp	#loop			'loop for next sample
+'
+'
+' Get tail sample
+'
+tail_sample	mov	x,tail			'get sample at tail into x
+		shr	x,#32-buffexp
+		shl	x,#1
+		add	x,samples_ptr
+		rdword	x,x
+
+	_ret_	bitnot	tail,#31		'toggle msb of tail to point to opposite of tail
+'
+'
+' Data
+'
+adc_config	long	%100111_0000000_00_11000_0	'10x-magnification ADC and SINC2 sampling
+dac_config	long	%10100_00000000_01_00011_0	'75-ohm, 2.0V, 16-bit, pwm-dithered DAC
+
+head		long	0
+headinc		long	$80000000 >> (buffexp - 1)
+h3FFF		long	$3FFF
+
+rates_ptr	res	1
+samples_ptr	res	1
+x		res	1
+y		res	1
+sa		res	1
+sb		res	1
+
+left_sample	res	1
+right_sample	res	1
+index		res	1
+tail		res	1
+
+rates_		res	16
+levels_		res	16
+tails_		res	16
+
+
+'*************
+'*  MIDI In  *
+'*************
+
+DAT		org
+
+midi_pasm	wrpin	#%11111_0, #midi_pin	'init midi pin
+		wxpin	.rxmode, #midi_pin
+		dirh	#midi_pin
+
+.reset		mov	.state,#0		'reset state
+
+.wait		testp	#midi_pin	wc	'wait for midi byte
+	if_nc	jmp	#.wait
+
+		rdpin	.x,#midi_pin		'get byte
+		shr	.x,#32-8
+
+		testb	.x,#7		wc	'if msb set, force command
+	if_c	mov	.state,#0
+
+		jmprel	.state			'branch by state
+		jmp	#.command		'state 0
+		jmp	#.on_note		'state 1
+		jmp	#.on_velocity		'state 2
+		jmp	#.off_note		'state 3
+		jmp	#.off_velocity		'state 4
+
+.command	cmp	.x,#$90		wz	'state 0
+	if_z	mov	.state,#1
+		cmp	.x,#$80		wz
+	if_z	mov	.state,#3
+		jmp	#.wait
+
+.on_note	mov	.y,.x			'state 1
+		mov	.state,#2
+		jmp	#.wait
+
+.on_velocity	add	.y,ptra			'state 2
+		wrbyte	.x,.y
+		jmp	#.reset
+
+.off_note	mov	.y,.x			'state 3
+		mov	.state,#4
+		jmp	#.wait
+
+.off_velocity	add	.y,ptra			'state 4
+		wrbyte	#0,.y
+		jmp	#.reset
+
+
+.rxmode		long	(clkfreq_/31250) << 16 + 8-1	'32,150 baud 8-N-1
+
+.state		res	1
+.x		res	1
+.y		res	1

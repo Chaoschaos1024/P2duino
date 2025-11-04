@@ -1,0 +1,904 @@
+'' ************************************************************************
+'' ** ESP32 AT Firmware Controller                                       **
+'' ** By Riley August (riley@robots-everywhere.com)                      **
+'' ** Copyright Robots Everywhere 2020                                   **
+'' ** License: The MIT License (MIT)                                     **
+'' ** https://mit-license.org/                                           **
+'' ************************************************************************
+'' UNIT TEST FILE. THIS CONTAINS TESTS THAT REQUIRE RUNNING ON ESP32 HARDWARE
+CON
+  _clkfreq = 200_000_000
+  baud = 115200
+  rxpin = 3 ' UART RX PIN CONNECTED TO ESP32 AT PIN (connect to ESP32 TX, default is UART2)
+  txpin = 4 ' UART TX PIN CONNECTED TO ESP32 AT PIN (connect to ESP32 RX, default is UART2)
+OBJ
+  com0: "jm_serial"
+  esp32: "esp32_core"
+  wifi: "esp32_wifi"
+  tcpip: "esp32_tcpip"
+  strings: "strings"
+
+DAT
+  ssid byte "testssid", 0
+  pwd byte "testpass", 0
+  testbox byte "10.5.112.179", 0             
+PUB start() | scratch, strs
+  com0.start(baud) ' USB com
+  com0.str(string("ESP32 TEST", 13, 10))
+            
+  scratch := esp32.init(rxpin, txpin)
+  com0.str(esp32.getSyncResponse())
+  waitms(10)
+  if(scratch)
+    OUTA[56] := 1
+    DIRA[56] := 1
+
+  esp32.echo(true)
+  testWifiConnectToAP() 
+  testGetWebpage()
+  com0.str(string("DONE!"))
+      
+
+PRI testReset() : okay | temp
+  okay := esp32.reset()
+  if(okay == false)
+    com0.str(string("ERROR, failed to reset."))
+    com0.str(esp32.getSyncResponse())
+  temp := esp32.getMessage()
+  okay := strings.contains(temp, string("ready"))
+  if(okay == 0)
+    com0.str(string("ERROR: did not get ready message, got instead: "))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("TEST PASSED", 13, 10))
+
+PRI testForceReset() : okay | temp
+  okay := esp32.forceReset()
+  if(okay == false)
+    com0.str(string("ERROR, failed to force reset."))
+    com0.str(esp32.getSyncResponse())
+  temp := esp32.pollMessage()
+  okay := strings.contains(temp, string("ready"))
+  if(okay == 0)
+    com0.str(string("ERROR: did not get ready message, got instead: "))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("TEST PASSED", 13, 10))  
+      
+PRI testAtVersion() | atVersPtr, sdkVersPtr, compileTime, scratch   
+  atVersPtr, sdkVersPtr, compileTime := esp32.getVersion()
+  com0.str(string("VERSION:"))
+  com0.str(atVersPtr)
+  com0.tx(13)
+  com0.tx(10)
+  com0.str(sdkVersPtr)
+  com0.tx(13)
+  com0.tx(10)
+  com0.str(compileTime)
+  com0.tx(13)
+  com0.tx(10)
+   
+PRI testGetUARTParams() | baudrate, databits, stopbits, parity, flow, debug 
+  baudrate, databits, stopbits, parity, flow := esp32.getCurrentUARTConfig()
+  com0.str(string("UART (RAM):"))
+  com0.dec(baudrate)
+  crlf()
+  com0.dec(databits)
+  crlf()
+  com0.dec(stopbits)
+  crlf()
+  com0.dec(parity)
+  crlf()
+  com0.dec(flow)
+  crlf()
+
+PRI testSetBaudRAM() | okay
+  okay := esp32.setUARTBaudRate(9600)
+  com0.str(esp32.getSyncResponse())
+  if(okay)
+    esp32.setExpectedBaudRate(9600)
+    com0.str(string("OKAY!", 13, 10))
+  repeat
+    testGetUARTParams()
+
+PRI testGetAvailableRam() | ram
+  ram := esp32.getAvailableRam()
+  com0.str(ram)
+  crlf()
+
+PRI testGetSavedUARTConfig() | baudrate, databits, stopbits, parity, flow
+  baudrate, databits, stopbits, parity, flow := esp32.getSavedUARTConfig()
+  com0.str(esp32.getSyncResponse())
+  com0.str(string("UART (RAM):"))
+  com0.dec(baudrate)
+  crlf()
+  com0.dec(databits)
+  crlf()
+  com0.dec(stopbits)
+  crlf()
+  com0.dec(parity)
+  crlf()
+  com0.dec(flow)
+  crlf()
+
+PRI testSetBaudFlash() | okay
+  okay := esp32.setSavedUARTBaudRate(9600)
+  testGetSavedUARTConfig()
+
+PRI testResetBaudFlash() | okay
+  okay := esp32.setSavedUARTBaudRate(115200)
+  testGetSavedUARTConfig()
+
+PRI testDeepSleep() | okay
+  okay := esp32.deepSleep(100)
+  if(okay)
+    waitms(10)
+    okay := esp32.getAvailableRam()  
+    if(okay == -1)
+      com0.str(string("Asleep", 13, 10))
+      waitms(1000)
+      okay := esp32.getAvailableRam()
+      if(okay <> -1)
+        com0.str(string("Awake", 13, 10))
+      else
+        com0.str(string("STILL ASLEEP", 13, 10))
+        crlf()
+    else
+      com0.str(string("ERROR", 13, 10))
+      com0.str(okay)
+      crlf()
+
+PRI testModemSleep(): testresult | okay
+  testresult := true
+  okay := esp32.modemSleep()
+  if(okay)
+    waitms(10)
+    com0.str(string("I'm asleep", 13, 10))
+    okay := esp32.getAvailableRam() ' not sure this actually sleeps
+    if(okay)
+      com0.str(string("I respond to AT commands while asleep.", 13, 10))
+      crlf()
+    else
+      com0.str(string("I should be responding to AT commands while asleep", 13, 10))
+      testresult := false
+      return
+    okay := wifi.connectToAP(@ssid, @pwd)
+    if(okay)
+      com0.str(string("TEST FAILED: Radio commands should be off", 13, 10))
+      testresult := false
+      okay := esp32.modemWake()
+      return
+    waitms(1000)
+    okay := esp32.modemWake()
+    waitms(1000)
+    com0.str(string("TEST PASSED: I'm awake", 13, 10))
+    okay := esp32.getAvailableRam() ' not sure this actually sleeps
+    com0.str(okay)
+    crlf()
+    testresult := okay
+
+PRI testGetWifiMode() | mode
+  mode := wifi.getWifiMode()
+  com0.dec(mode)
+  crlf()
+
+PRI testSetWifiStation(): okay
+  okay := wifi.setWifiStationMode()
+  if(okay)
+    com0.str(string("Wifi in station mode.", 13, 10))
+
+PRI testSetWifiSoftAP(): okay
+  okay := wifi.setWifiSoftAPMode()
+  if(okay)
+    com0.str(string("Wifi in AP mode.", 13, 10))
+
+
+PRI testSetWifiBothMode(): okay
+  okay := wifi.setWifiSoftAPAndStationMode()
+  if(okay)
+    com0.str(string("Wifi in both mode.", 13, 10))
+
+PRI testWifiConnectToAP(): okay
+  testSetWifiStation()
+  okay := wifi.connectToAP(@ssid, @pwd)
+  if(okay <> 0)
+    com0.str(string("ERROR: CONNECTING TO AP FAIL", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    waitms(100)
+    return
+  else
+    com0.str(string("Connect started", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    okay := -1
+    com0.str(string("Waiting for input", 13, 10))
+    repeat until okay <> -1
+      okay := com0.rxcheck()
+      waitms(10)
+      com0.str(esp32.getMessage())
+  okay := tcpip.getStationIPAddress()
+
+PRI testWifiConnectToAP_InvPwd() : okay
+  testSetWifiStation()
+  okay := wifi.connectToAP(@ssid, string("honk"))
+  if(okay == 4)  ' we don't have a lot of error code smarts it's just the ESP32 we don't have to test extensively
+    okay := true
+    com0.str(string("TEST PASSED", 13, 10))
+    waitms(10000) ' this takes a long time to reset
+    return
+  else
+    com0.str(string("ERROR: CONNECTING TO AP FAIL - expected wrong pwd, got: ", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    okay := false
+    waitms(10000) ' this takes a long time to reset
+    return
+
+PRI testGetConnectedAP(): okay | testssid, bssid, channel, rssi
+  com0.str(string("starting", 13, 10))
+  okay := testWifiConnectToAP() ' connect to an AP first
+  if (okay == false)
+    com0.str(string("Fail connect to AP, skip", 13, 10))
+    return
+  testssid, bssid, channel, rssi := wifi.getConnectedAP()
+  okay := strings.contains(testssid, @ssid)
+  if(okay > 0)
+    com0.str(string("TEST PASSED", 13, 10))
+  else
+    com0.str(string("TEST FAILED: "))
+    com0.str(esp32.getSyncResponse())
+    crlf()   
+
+PRI testWifiDisconnectFromAP() : okay
+  okay := wifi.disconnect()
+  if(okay)
+    com0.str(string("Disconnected", 13, 10))
+  else
+    com0.str(string("Failed to disconnect", 13, 10))
+
+PRI testWifiList() | honk ' this requires the use of the async buffer
+  honk := wifi.listAPs()
+  if(esp32.getSyncResponse() <> wifi.getResponse())
+    com0.str(string("WE HAVE A VERY SERIOUS PROBLEM.", 13, 10))
+  if (honk > -1)
+    com0.str(string("FULL LIST", 13, 10))
+    com0.dec(honk)                      
+  else
+    com0.str(wifi.getResponse()) ' nothing cos it takes forever
+    crlf()
+    com0.str(string("CUTOFF", 13, 10))
+    repeat
+      com0.str(esp32.pollMessage())
+      esp32.clearMessage()
+
+PRI testSoftAP() | okay, mode ' set up a soft AP
+  esp32.echo(false)
+  okay := wifi.setWifiSoftAPMode()
+  waitms(100)
+  mode := wifi.getWifiMode()
+  com0.dec(mode)
+  crlf()
+ 
+  waitms(100)
+  if(okay == false)
+    com0.str(string("ERROR SETTING SOFT AP MODE", 13, 10))
+    return
+  okay := wifi.configureSoftAP(string("QA"), string("TEST"), 10, 0, 1, 0)
+  if(okay == false)
+    com0.str(string("ERROR CONFIGURING SOFT AP", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    return
+  waitms(1000)
+  repeat
+    waitms(100)
+    mode := wifi.getWifiMode()
+    com0.dec(mode)
+    crlf()
+    waitms(100)
+    okay := wifi.getStationIPs()
+    if(okay > -1)
+      com0.str(string("OKAY", 13, 10))
+      com0.str(okay)
+    else
+      com0.str(string("Waiting for IP"))
+      com0.str(esp32.getSyncResponse())
+    crlf()
+
+PRI testSoftAPWithPwd() : okay | mode
+  esp32.echo(false)
+  okay := wifi.setWifiSoftAPMode()
+  waitms(100)
+  mode := wifi.getWifiMode()
+  com0.dec(mode)
+  crlf()
+ 
+  waitms(100)
+  if(okay == false)
+    com0.str(string("ERROR SETTING SOFT AP MODE", 13, 10))
+    return
+  okay := wifi.configureSoftAP(string("QA"), string("TESTTESTTEST"), 6, 3, 2, 0)
+  if(okay == false)
+    com0.str(string("ERROR CONFIGURING SOFT AP", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    return
+  waitms(1000)
+  repeat
+    waitms(100)
+    mode := wifi.getWifiMode()
+    com0.dec(mode)
+    crlf()
+    waitms(100)
+    okay := wifi.getStationIPs()
+    if(okay > -1)
+      com0.str(string("OKAY", 13, 10))
+      com0.str(okay)
+      return ' return once something has connected to it
+    else
+      com0.str(string("Waiting for IP"))
+      com0.str(esp32.getSyncResponse())
+    crlf()
+
+PRI testGetSoftAPConfig(): okay | testssid, testpassword, channel, encryption, maxconn, hidden
+  esp32.echo(false)
+  okay := wifi.setWifiSoftAPMode()
+  waitms(100)
+  if(okay == false)
+    com0.str(string("ERROR SETTING SOFT AP MODE", 13, 10))
+        com0.str(esp32.getSyncResponse())
+
+    return
+  okay := wifi.configureSoftAP(string("QA"), string("TESTTESTTEST"), 10, 2, 1, 0)
+
+  if(okay == false)
+    com0.str(string("ERROR SETTING CONF", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    return
+  testssid,testpassword,channel,encryption,maxconn,hidden := wifi.getSoftAPConfiguration()
+  if(testssid == -1)
+    com0.str(string("ERROR GETTING CONF", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    okay := false
+  okay := strings.contains(testssid, string("QA"))
+  ' THE MODEL UNDER TEST ONLY RETURNS THE DAMN SSID
+  'okay := strings.startsWith(testpassword, @pwd) && okay
+  'okay := (channel == 10) && okay
+  'okay := (encryption == 2) && okay
+  'okay := (maxconn == 1) && okay
+  'okay := (hidden == 0) && okay
+  if(okay == 0)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(testssid)
+    crlf()
+    com0.str(esp32.getSyncResponse())
+      com0.str(string(","))
+    repeat
+      com0.str(esp32.getMessage())
+    return
+  else
+    com0.str(string("TEST PASSED", 13, 10))
+
+PRI testDHCPBitmask() : okay | temp
+  okay := esp32.echo(true)
+  if(okay == false)
+    com0.str(string("Cannot set echo", 13, 10))
+    return       
+  wifi.enableDHCP(true, true)
+  temp := esp32.getSyncResponse()
+  okay := strings.startswith(temp, string("AT+CWDHCP=1,3"))
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(temp)
+    crlf()
+    return          
+  wifi.enableDHCP(true, false)
+  temp := esp32.getSyncResponse()
+  okay := strings.startswith(temp, string("AT+CWDHCP=1,1"))
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(temp)
+    crlf()
+    return       
+  wifi.enableDHCP(false, true)
+  temp := esp32.getSyncResponse()
+  okay := strings.startswith(temp, string("AT+CWDHCP=1,2"))
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(temp)
+    crlf()
+    return
+  com0.str(string("TEST PASSED", 13, 10))
+  esp32.echo(false)
+
+PRI testDHCPRange() : okay | leasetime, startip, endip
+  wifi.setWifiSoftAPMode()
+    okay := wifi.configureSoftAP(string("QA"), string("TEST"), 10, 0, 1, 0)
+  com0.str(tcpip.getAPIPAddress())
+  crlf()
+   com0.str(string("---", 13, 10))
+  com0.str(esp32.getSyncResponse())
+  waitms(10)
+  okay := wifi.setDHCPRange(3, string("192.168.4.5"), string("192.168.4.15"))
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    return
+  waitms(10)
+  leasetime, startip, endip := wifi.getDHCPRange()
+  if(leasetime == -1)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    wifi.setWifiStationMode()
+    return
+  wifi.setWifiStationMode()
+
+  
+PUB testConnectAsClient() | okay, ping
+  testSetWifiStation()
+  testWifiConnectToAP()
+  if(okay <> 0)                         
+    com0.str(string("ERROR: CONNECTING TO AP FAIL", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    waitms(100)
+    return
+  else
+    repeat 10
+      waitms(100)
+      com0.str(esp32.pollMessage())
+  com0.str(string("Pinging!", 13, 10))
+          
+  tcpip.startTCPTransmission(-1, string("10.5.112.179"), 80, 0)
+  com0.str(esp32.getSyncResponse())
+  
+PUB testConnectAsUDPClient() | okay
+  testSetWifiStation()
+  testSetWifiStation()
+  testWifiConnectToAP()
+  if(okay <> 0)
+    com0.str(string("ERROR: CONNECTING TO AP FAIL", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    waitms(100)
+    return
+  else
+    repeat 10
+      waitms(100)
+      com0.str(esp32.pollMessage())
+  com0.str(string("Pinging!", 13, 10))
+  tcpip.startUDPTransmission(-1, string("10.5.112.179"), 999, -1, 0)
+  com0.str(esp32.getSyncResponse())
+  
+PRI disableAutoConnect() : okay
+  okay := wifi.disableAutoConnect()
+  if(okay)
+    com0.str(string("ok autocnnect", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("bad autocnnect", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  waitms(100)
+  tcpip.disableMultipleConnections()
+  com0.str(esp32.getSyncResponse())
+  waitms(10)
+  tcpip.setNormalXmit()
+  com0.str(esp32.getSyncResponse())
+  waitms(10)
+
+PRI testGetStationStatusNoLinks(): okay |  status, linkid, type, remoteip, remoteport, localport, tetype
+  testSetWifiStation()
+  testWifiConnectToAP()
+  status, linkid, type, remoteip, remoteport, localport, tetype := tcpip.getStationStatus()
+  if(status == -1)
+    com0.str(string("ERROR RETURNED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    return
+  okay := (status == 2)
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("TEST PASSED", 13, 10))
+  
+  
+
+PRI testGetStationStatusTCP(): okay |  status, linkid, type, remoteip, remoteport, localport, tetype
+  testSetWifiStation()
+  testWifiConnectToAP()
+  createTCPConnection(-1)
+  status, linkid, type, remoteip, remoteport, localport, tetype := tcpip.getStationStatus()
+  if(status == -1)
+    com0.str(string("ERROR RETURNED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    return
+  
+  okay := (status == 3) ' transmitting
+  okay := okay && (linkid == 0)
+  okay := okay && (strings.startswith(type, string("TCP")))
+  okay := okay && (remoteport <> 0)
+  okay := okay && (remoteip <> 0)
+  okay := okay && (localport <> 0)
+  okay := okay && (tetype == 0)
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    com0.dec(status)
+    crlf()
+    com0.str(type)
+    crlf()
+    com0.str(remoteip)
+    crlf()
+    com0.dec(remoteport)
+    crlf()
+    com0.dec(localport)
+  else
+    com0.str(string("TEST PASSED", 13, 10))
+
+PRI testGetStationStatusUDP(): okay |  status, linkid, type, remoteip, remoteport, localport, tetype
+  testConnectAsUDPClient()
+  status, linkid, type, remoteip, remoteport, localport, tetype := tcpip.getStationStatus()
+  if(status == -1)
+    com0.str(string("ERROR RETURNED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    return
+  
+  status, linkid, type, remoteip, remoteport, localport, tetype := tcpip.getStationStatus()
+  if(status == -1)
+    com0.str(string("ERROR RETURNED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    return
+  
+  okay := (status == 2) ' connected
+  okay := okay && (linkid == 0)
+  okay := okay && (strings.startswith(type, string("UDP")))
+  okay := okay && (remoteport <> 0)
+  okay := okay && (remoteip <> 0)
+  okay := okay && (localport <> 0)
+  okay := okay && (tetype == 0)
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    com0.dec(status)
+    crlf()
+    com0.str(type)
+    crlf()
+    com0.str(remoteip)
+    crlf()
+    com0.dec(remoteport)
+    crlf()
+    com0.dec(localport)
+  else
+    com0.str(string("TEST PASSED", 13, 10))
+
+PRI testGetStationStatusMultiple(): okay |  status, linkid, type, remoteip, remoteport, localport, tetype
+  ' set up multiple links then get status of all of them.
+  ' create some links
+  testSetWifiStation()
+  
+  testWifiConnectToAP()
+
+  tcpip.enableMultipleConnections()
+
+  com0.str(esp32.getSyncResponse())
+  crlf()
+  com0.str(string("---", 13, 10))
+
+  createTCPConnection(0)
+  
+  createTCPConnection(1)
+  waitms(10)
+  status, linkid, type, remoteip, remoteport, localport, tetype := tcpip.getStationStatus()
+  if(status == -1)
+    com0.str(string("ERROR RETURNED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    return
+  okay := (status == 3) ' transmitting
+  okay := okay && (linkid == 0)
+  okay := okay && (strings.startswith(type, string("TCP")))
+  okay := okay && (remoteport <> 0)
+  okay := okay && (remoteip <> 0)
+  okay := okay && (localport <> 0)
+  okay := okay && (tetype == 0)
+  if(okay == false)
+    com0.str(string("TEST FAILED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    com0.dec(status)
+    crlf()
+    com0.str(type)
+    crlf()
+    com0.str(remoteip)
+    crlf()
+    com0.dec(remoteport)
+    crlf()
+    com0.dec(localport)
+  else
+    com0.str(string("TEST PASSED", 13, 10))
+    
+  linkid, type, remoteip, remoteport, localport, tetype := tcpip.getNextStationStatus()
+  if(status == -1)
+    com0.str(string("ERROR RETURNED", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    crlf()
+    return
+  okay := (status == 3) ' transmitting
+  okay := okay && (linkid == 1)
+  okay := okay && (strings.startswith(type, string("TCP")))
+  okay := okay && (remoteport <> 0)
+  okay := okay && (remoteip <> 0)
+  okay := okay && (localport <> 0)
+  okay := okay && (tetype == 0)
+  if(okay == false)
+    com0.str(string("TEST FAILED2", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    com0.dec(status)
+    crlf()
+    com0.str(type)
+    crlf()
+    com0.str(remoteip)
+    crlf()
+    com0.dec(remoteport)
+    crlf()
+    com0.dec(localport)
+  else
+    com0.str(string("TEST PASSED2", 13, 10))
+
+PRI testGetDNSLookup() : okay
+  esp32.echo(false)
+  testWifiConnectToAP()
+  okay := tcpip.dnsLookup(string( "www.yahoo.com"))
+  if(okay == -1)                                
+    okay := false
+    com0.str(string("TEST FAILED "))
+    com0.str(esp32.getSyncResponse())
+    return
+  if(strings.startsWith(okay, string("74.6.143.26"))) ' NOTE: THIS IP WILL CHANGE
+    okay := true
+    com0.str(string("TEST PASSED"))
+    return
+  else
+    okay := false
+    com0.str(string("TEST FAILED "))
+    com0.str(esp32.getSyncResponse())
+    return
+
+PRI testGetInvalidDNS() : okay
+  testWifiConnectToAP()
+  okay := tcpip.dnsLookup(string(34,"testinvaliddns.com",34))
+  if(okay <> -1)
+    okay := false
+    com0.str(string("TEST FAILED "))
+    com0.str(esp32.getSyncResponse())
+    return
+  okay := true
+
+PRI testSetDNSServer() : okay
+  esp32.echo(false)
+  testWifiConnectToAP()
+  okay := tcpip.setDNSServer(string(34, "4.4.4.4", 34))
+  if(okay == false)
+    com0.str(string("TEST FAILED ON SET"))
+    com0.str(esp32.getSyncResponse())
+    return
+  okay := strings.contains(tcpip.getDNSServerList(), string("+CIPDNS:4.4.4.4"))
+  if(okay == 0)
+    com0.str(string("TEST FAILED ON RETRIEVE"))
+    com0.str(esp32.getSyncResponse())
+    return
+                       
+
+PRI testSetMultipleDNS() : okay
+  testWifiConnectToAP()
+  esp32.echo(false)
+  testWifiConnectToAP()
+  okay := tcpip.setDNSServer(string(34, "4.4.4.4", 34, ",", 34, "8.8.8.8", 34))
+  if(okay == false)
+    com0.str(string("TEST FAILED "))
+    com0.str(esp32.getSyncResponse())
+    return
+  okay := tcpip.getDNSServerList()
+  okay := strings.contains(okay, string("+CIPDNS:4.4.4.4", 13, 10, "+CIPDNS:8.8.8.8"))
+  if(okay == 0)
+    com0.str(string("TEST FAILED "))
+    com0.str(esp32.getSyncResponse())
+    return
+
+PRI testSetIPAddress() : okay
+  wifi.setWifiSoftAPMode()
+  okay := wifi.configureSoftAP(string("QA"), string("TEST"), 10, 0, 1, 0)
+  waitms(1000)
+  okay := tcpip.setAPIPAddress(string("192.168.0.101"), string("192.168.0.1"), -1)
+  verify(okay)
+  com0.str(tcpip.getAPIPAddress())
+  ' end to end test to verify it
+
+PRI createTCPConnection(linkid): okay
+  com0.str(string("Creating TCP connection", 13, 10))
+  esp32.clearMessage() ' we should clear message so we can wait for next one
+  waitms(10)
+  tcpip.startTCPTransmission(linkid, string("www.postman-echo.com"), 80, 0)
+  com0.str(esp32.getSyncResponse())
+  okay := tcpip.waitForConnect(5000)
+  if(okay)
+    com0.str(string("Got connect.", 13, 10))
+    com0.str(esp32.getMessage())
+  else
+    com0.str(string("Connection timed out", 13, 10))
+    com0.str(",")
+    com0.str(esp32.getMessage())
+    return
+  esp32.clearMessage()
+  waitms(1000)
+
+PRI createSSLConnection(): okay
+  com0.str(string("Creating SSL connection", 13, 10))
+  esp32.clearMessage() ' we should clear message so we can wait for next one
+  waitms(10)
+  tcpip.startSSLTransmission(-1, string("www.postman-echo.com"), 443, 0)
+  com0.str(esp32.getSyncResponse())
+  okay := tcpip.waitForConnect(5000)
+  if(okay == true)
+    com0.str(string("Got connect.", 13, 10))
+    com0.str(esp32.getMessage())
+  else
+    com0.str(string("Connection timed out----", 13, 10))
+    com0.str(esp32.getMessage())
+    return
+  esp32.clearMessage()
+  waitms(1000)
+PRI testTCPMultipleConnections(): okay | temp
+  testSetWifiStation()
+  okay := testWifiConnectToAP()
+  tcpip.enableMultipleConnections()
+  tcpip.startTCPTransmission(0, string("www.postman-echo.com"), 80, 0)
+  com0.str(esp32.getSyncResponse())
+  tcpip.waitForConnect(5000)
+  if(okay)
+    com0.str(string("Got connect.", 13, 10))
+    com0.str(esp32.pollMessage())
+  else
+    com0.str(string("Connection timed out", 13, 10))
+    com0.str(esp32.pollMessage())
+    
+  tcpip.startTCPTransmission(1, string("www.postman-echo.com"), 80, 0)
+  com0.str(esp32.getSyncResponse())
+  tcpip.waitForConnect(5000)
+  if(okay)
+    com0.str(string("Got connect.", 13, 10))
+    com0.str(esp32.pollMessage())
+  else
+    com0.str(string("Connection timed out", 13, 10))
+    com0.str(esp32.pollMessage())
+  
+  okay := tcpip.sendHTTPRequest(0, false, string("GET"), string("https://www.postman-echo.com/get"), string("HTTP/1.1"), -1, -1)
+  esp32.clearMessage()
+  if(okay == -1)
+    com0.str(string("Error??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  elseif (okay == 0)
+    com0.str(string("FAIL??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("Waiting for page", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    temp := 0
+    repeat until (temp <> -1)  ' wait for keypress
+      okay := esp32.getMessage()
+      com0.str(okay)
+      temp := com0.rxcheck()
+
+  okay := tcpip.sendHTTPRequest(1, false, string("GET"), string("https://www.postman-echo.com/get"), string("HTTP/2.0"), -1, -1) ' use 2.0 to distinguish
+  esp32.clearMessage()
+  if(okay == -1)
+    com0.str(string("Error??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  elseif (okay == 0)
+    com0.str(string("FAIL??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("Waiting for page", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    
+    repeat until (temp <> -1)  ' wait for keypress
+      okay := esp32.getMessage()
+      com0.str(okay)
+      temp := com0.rxcheck()
+
+PRI testUDPMultipleConnections(): okay
+  testSetWifiStation()
+  okay := testWifiConnectToAP()  
+  tcpip.enableMultipleConnections()
+  tcpip.startUDPTransmission(0, @testbox, 1000, -1, 0)
+  com0.str(esp32.getSyncResponse())
+  tcpip.waitForConnect(5000)
+  if(okay)
+    com0.str(string("Got connect.", 13, 10))
+    com0.str(esp32.pollMessage())
+  else
+    com0.str(string("Connection timed out", 13, 10))
+    com0.str(esp32.pollMessage())
+    
+  tcpip.startUDPTransmission(1, @testbox, 999, -1, 0)
+  com0.str(esp32.getSyncResponse())
+  tcpip.waitForConnect(5000)
+  if(okay)
+    com0.str(string("Got connect.", 13, 10))
+    com0.str(esp32.pollMessage())
+  else
+    com0.str(string("Connection timed out", 13, 10))
+    com0.str(esp32.pollMessage())
+  esp32.echo(true)
+  tcpip.startSending(0, 40)
+  tcpip.endSending(string("This is a test UDP packet, receive me.", 13, 10))
+  com0.str(esp32.getSyncResponse())
+  com0.str(esp32.getMessage())
+  tcpip.startSending(1, 40)
+  tcpip.endSending(string("This is a test UDP packet, receive me.", 13, 10))
+  com0.str(string("---", 13, 10))
+  com0.str(esp32.getSyncResponse())
+  com0.str(esp32.getMessage())
+  ' if we get two packets at destination, we're good. UDP does not handle responses.
+
+PRI testSSL() : okay
+  testSetWifiStation()
+  testWifiConnectToAP()
+  createSSLConnection()
+  okay := tcpip.sendHTTPRequest(-1, false, string("GET"), string("https://www.postman-echo.com/get"), string("HTTP/1.1"), -1, -1)
+  esp32.clearMessage()
+  if(okay == -1)
+    com0.str(string("Error??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  elseif (okay == 0)
+    com0.str(string("FAIL??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("Waiting for page", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    
+    repeat
+      okay := esp32.getMessage()
+      com0.str(okay)
+
+PRI testGetWebpage() | okay, temp, method, url, httpversion  
+
+  com0.str(string("sending get request", 13, 10))
+  okay := createTCPConnection(-1)
+  okay := tcpip.sendHTTPRequest(-1, false, string("GET"), string("https://www.postman-echo.com/get"), string("HTTP/1.1"), -1, -1)
+  esp32.clearMessage()
+  if(okay == -1)
+    com0.str(string("Error??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  elseif (okay == 0)
+    com0.str(string("FAIL??", 13, 10))
+    com0.str(esp32.getSyncResponse())
+  else
+    com0.str(string("Waiting for page", 13, 10))
+    com0.str(esp32.getSyncResponse())
+    
+    repeat
+      okay := esp32.getMessage()
+      com0.str(okay)
+PRI testPassThroughMode() | okay
+'' Test ESP32 passthrough mode.
+  esp32.echo(true)
+  esp32.clearMessage()
+  testWifiConnectToAP()
+  tcpip.setPassThroughXmit()
+  waitms(10)
+  createTCPConnection(-1)
+  waitms(1000)
+  okay := tcpip.sendHTTPRequest(-1, true, string("GET"), string("https://www.postman-echo.com/get"), string("HTTP/1.1"), -1, -1)
+  tcpip.endSendingTransparent()
+  waitms(100)
+  repeat
+      okay := esp32.getMessage()
+      com0.str(okay)
+PRI verify(okay)
+ if(okay == false)
+    com0.str(string("TEST FAILED "))
+    com0.str(esp32.getSyncResponse())
+    return                                               
+PUB crlf()                                            
+  com0.tx(13)
+  com0.tx(10)  

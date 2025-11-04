@@ -1,0 +1,12 @@
+con  _clkfreq = 200_000_000
+
+var stk[40*8]
+
+pub go() | i
+repeat
+  repeat i from 7 to 0
+    cogspin(i,doit(),@stk[40*i])
+
+pri doit() | i
+repeat
+  debug(udec(getct()), dly(2000))

@@ -1,0 +1,10 @@
+CON _clkfreq	= 200_000_000
+
+PUB go() | i, j, buffaddr
+
+  debug("`logic rnd samples 100 'Hmmm...' 32 textsize 20")
+  waitms(500)
+
+  repeat
+    debug("`rnd ", uhex_long_(getrnd()))
+    waitms(10)

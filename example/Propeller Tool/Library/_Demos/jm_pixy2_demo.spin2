@@ -1,0 +1,372 @@
+'' =================================================================================================
+''
+''   File....... jm_pixy2_demo.spin2
+''   Purpose....
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon@jonmcphalen.com
+''   Started....
+''   Updated.... 11 DEC 2020
+''
+'' =================================================================================================
+
+{{
+
+   Note: For this demo the Pixy2 should be trained for signatures 1, 2, and 3, or CC signatures
+         1, 2, and 3. This is done via the PixyMon software. Note that you can use the Pixy2
+         with your Propeller and PixyMon at the same time -- just disconnect the 5v line between
+         the Pixy2 and the Propeller. Do not connect the Pixy2 5v pin to the Propeller circuitry
+         when the USB cable is plugged into the Pixy2.
+
+         This program uses serial communications. In PixyMon, go to the Configure\Interface tab
+         and set the data output port to UART, and the baud to 19200. The P2 uses smart pins for
+         serial coms so any baud rate supported by the Pixy2 may be used.
+
+         Pixy2 connector:
+
+         Propeller.TX  --O  O-- 5v (if not connected to USB)
+                       --O  O-- Propeller.RX
+                       --O  O-- Ground
+                       --O  O--
+                       --O  O--
+
+   Note: The Pixy2 may need up to 5s to be ready. When using the Pixy2 in a stand-alone application,
+         insert a 5-second delay before attempting communications.
+
+
+}}
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+  BR_PIXY  =  19_200                                            ' Pixy2 baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }
+  SD_SDO   = 59  { O }
+  SD_SDI   = 58  { I }
+
+  LED2     = 57  { O }                                          ' Eval and Edge LEDs
+  LED1     = 56  { O }
+
+
+con { app io pins }
+
+  RX2      = 55  { I }                                          ' Pixy2 serial connections
+  TX2      = 54  { O }
+
+
+con
+
+  SIG_MAP    = pixy.CCC_SIG1 | pixy.CCC_SIG2 | pixy.CCC_SIG3    ' signatures 1, 2, and 3
+  CC_MAP     = pixy.CCC_COLOR_CODES | SIG_MAP                   ' color codes for CC signatures 1, 2, and 3
+  MAX_BLOCKS = pixy.MAX_BLOCKS                                  ' limit block count for serial buffer
+
+  ESC = 27                                                      ' escape key
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  pixy : "jm_pixy2"                                             '   Pixy2 interface
+  term : "jm_fullduplexserial"                                  ' * serial IO for terminal
+
+' * uses cog when loaded
+
+
+var { globals }
+
+  word  framewidth                                              ' image size from Pixy2
+  word  frameheight
+
+  ' pixy block data -- keep in this order
+
+  word  signature                                               ' color signature
+  word  xpos                                                    ' location
+  word  ypos
+  word  xpixels                                                 ' size
+  word  ypixels
+  word  angle                                                   ' color code angle (signed)
+  byte  age
+  byte  tindex
+
+
+dat
+
+  Menu          byte    13, "Select Demo: ", 13
+                byte    "[1] Track Color Signatures", 13
+                byte    "[2] Track Color Codes", 13
+                byte    "[3] Read color (raw)", 13
+                byte    "[4] Read color (saturated)", 13, 13
+                byte    0
+
+
+pub main() | demo, k
+
+  setup()
+
+  wait_for_terminal(true)
+
+  show_version()
+  show_resolution()
+  show_fps()
+
+  repeat
+    term.str(@Menu)                                             ' show menu
+    term.rxflush()                                              ' clear keyboard input
+    demo := term.rx()                                           ' wait for keypress
+    demo := demo - "0"                                          ' convert ASCII to digit
+
+    repeat
+      case demo
+        1     : show_signatures()
+        2     : show_color_codes()
+        3     : show_color_detect(0)
+        4     : show_color_detect(1)
+        other : quit
+
+      waitms(1000)
+      k := term.rxcheck()                                       ' look for escape
+      if (k == ESC)                                             ' back to menu
+        quit
+
+
+pub show_version() : result
+
+  result := pixy.get_version()
+
+  if (result < pixy.RESULT_OK)
+    bad_response(result)
+    return
+
+  term.str(string("Hardware... "))
+  term.dec(pixy.hardware())
+  term.tx(13)
+  term.str(string("Firmware... "))
+  term.dec(pixy.fw_major())
+  term.tx(".")
+  term.dec(pixy.fw_minor())
+  term.tx(".")
+  term.dec(pixy.fw_build())
+  term.tx(" ")
+  term.tx("(")
+  term.str(pixy.fw_type())
+  term.tx(")")
+  term.txn(13, 2)
+
+
+pub show_resolution() : result
+
+  result := pixy.get_resolution(@framewidth, @frameheight)
+
+  if (result < pixy.RESULT_OK)
+    bad_response(result)
+    return
+
+  term.str(string("X Pixels... "))
+  term.dec(framewidth)
+  term.tx(13)
+  term.str(string("Y Pixels... "))
+  term.dec(frameheight)
+  term.txn(13, 2)
+
+
+pub show_fps() | fps
+
+  fps := pixy.get_fps()
+
+  if (fps < pixy.RESULT_OK)
+    bad_response(fps)
+    return
+
+  term.str(string("Frames/s... "))
+  term.dec(fps)
+  term.txn(13, 2)
+
+
+pub show_signatures() | nsigs, bidx
+
+'' Requires standard signatures to be trained into Pixy2
+
+  nsigs := pixy.get_blocks(SIG_MAP, MAX_BLOCKS)
+
+  if (nsigs < pixy.RESULT_OK)
+    bad_response(nsigs)
+    return
+
+  term.dec(nsigs)
+  term.str(string(" signatures detected", 13, 13))
+
+  if (nsigs)
+    repeat bidx from 0 to nsigs-1
+      pixy.extract_block(bidx, @signature)
+      term.str(string(" sig: "))
+      term.dec(signature)
+      term.str(string("  xpos: "))
+      term.jdec(xpos, 0, 3, " ")
+      term.str(string("  ypos: "))
+      term.jdec(ypos, 0, 3, " ")
+      term.str(string("  width: "))
+      term.jdec(xpixels, 0, 3, " ")
+      term.str(string("  height: "))
+      term.jdec(ypixels, 0, 3, " ")
+      term.tx(13)
+    term.tx(13)
+
+
+pub show_color_codes() | nccodes, bidx
+
+'' Requires Color Code signatures to be trained into Pixy2
+
+  nccodes := pixy.get_blocks(CC_MAP, MAX_BLOCKS)
+
+  if (nccodes < pixy.RESULT_OK)
+    bad_response(nccodes)
+    return
+
+  term.dec(nccodes)
+  term.str(string(" color codes detected", 13, 13))
+
+  if (nccodes)
+    repeat bidx from 0 to nccodes-1
+      pixy.extract_block(bidx, @signature)
+      term.str(string(" ccode: "))
+      term.fhex(pixy.oct2hex(signature), 3)                     ' convert octal code to hex for display
+      term.str(string("  xpos: "))
+      term.jdec(xpos, 0, 3, " ")
+      term.str(string("  ypos: "))
+      term.jdec(ypos, 0, 3, " ")
+      term.str(string("  width: "))
+      term.jdec(xpixels, 0, 3, " ")
+      term.str(string("  height: "))
+      term.jdec(ypixels, 0, 3, " ")
+      term.str(string("  angle: "))
+      term.jdec(angle signx 7, 0, 4, " ")
+      term.tx(13)
+    term.tx(13)
+
+
+pub show_color_detect(mode) | ec
+
+  ec := pixy.get_rgb(158, 104, mode)                            ' get color from screen center
+
+  if (ec < pixy.RESULT_OK)
+    bad_response(ec)
+    return
+
+  term.str(string("Color = "))
+  term.fhex(ec, 6)
+  term.tx(13)
+
+
+pub bad_response(error)
+
+  term.str(string("Pixy returned error code: "))
+  term.dec(error)
+  term.txn(13, 2)
+
+
+pub debug_response() | p_buf, idx, lc
+
+'' Show raw contents of resonse packet
+
+  p_buf := pixy.buf_addr()                                      ' get address of buffer
+
+  hex2(byte[p_buf][0])                                          ' header
+  hex2(byte[p_buf][1])
+  term.tx(13)
+
+  hex2(byte[p_buf][2])                                          ' response code
+  term.tx(13)
+
+  hex2(byte[p_buf][3])                                          ' size of response payload
+  term.tx(13)
+
+  hex2(byte[p_buf][4])                                          ' payload checksum
+  hex2(byte[p_buf][5])
+  term.txn(13, 2)
+
+  ' payload if available
+
+  idx := 6
+  lc := 0
+  repeat byte[p_buf][3]
+    hex2(byte[p_buf][idx++])                                    ' print byte
+    if (++lc == 8)                                              ' if 8 bytes on this line
+      term.tx(13)                                               ' newline
+      lc := 0                                                   ' reset count
+
+
+pri hex2(value)
+
+  term.fhex(value, 2)
+  term.tx(" ")
+
+
+pub setup()
+
+'' Setup IO and objects for application
+
+' waitms(5000)                                                  ' give pixy2 time to start
+
+  pixy.start(RX2, TX2, BR_PIXY)                                 ' start pixy2
+
+  term.tstart(BR_TERM)                                          ' start serial for terminal *
+
+
+pub wait_for_terminal(clear)
+
+  ' Download to RAM with F10
+  ' F12 to open PST
+  ' Click [Enable]
+  ' Press Enter
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    term.tx(term.CLS)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

@@ -1,0 +1,193 @@
+'' =================================================================================================
+''
+''   File....... jm_qwiic_twist_demo.spin2
+''   Purpose....
+''   Author..... Jon "JonnyMac" McPhalen
+''               Copyright (c) 2020 Jon McPhalen
+''               -- see below for terms of use
+''   E-mail..... jon.mcphalen@gmail.com
+''   Started....
+''   Updated.... 18 DEC 2020
+''
+''   {$P2}
+''
+'' =================================================================================================
+
+{
+   Demonstration code for Sparkfun Qwiic Twist encoder with RGB LEDs
+   -- https://www.sparkfun.com/products/15083
+   -- Warning... it's pricey! ($20)
+   -- Arduino library has error in connectColor() function
+      * corrected in JM's P2 library
+}
+
+
+con { timing }
+
+  CLK_FREQ = 200_000_000                                        ' system freq as a constant
+  MS_001   = CLK_FREQ / 1_000                                   ' ticks in 1ms
+  US_001   = CLK_FREQ / 1_000_000                               ' ticks in 1us
+
+  BR_TERM  = 115_200                                            ' terminal baud rate
+
+  _clkfreq = CLK_FREQ                                           ' set system clock
+
+
+con { fixed io pins }
+
+  RX1      = 63  { I }                                          ' programming / debug
+  TX1      = 62  { O }
+
+  SF_CS    = 61  { O }                                          ' serial flash
+  SF_SCK   = 60  { O }
+  SF_SDO   = 59  { O }
+  SF_SDI   = 58  { I }
+
+  SD_SCK   = 61  { O }                                          ' sd card
+  SD_CS    = 60  { O }
+  SD_SDO   = 59  { O }
+  SD_SDI   = 58  { I }
+
+  LED2     = 57  { O }                                          ' Eval and Edge LEDs
+  LED1     = 56  { O }
+
+
+con { app io pins }
+
+  SDA      = 55  { IO }                                         ' i2c for Qwiic Twist
+  SCL      = 54  { O }
+
+
+con
+
+  #true,  ON, OFF
+  #false, NO, YES
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  twist : "jm_qwiic_twist"                                      '   qwiic twist encoder driver
+  term  : "jm_fullduplexserial"                                 ' * serial IO for terminal
+
+' * uses cog when loaded
+
+
+dat
+
+  Menu          byte      "----------------------------", 13
+                byte      "  Qwiic Twist Encoder Demo  ", 13
+                byte      "----------------------------", 13
+                byte      13
+                byte      "[R] Red                     ", 13
+                byte      "[G] Green                   ", 13
+                byte      "[B] Blue                    ", 13
+                byte      "[O] LEDs off                ", 13
+                byte      "[C] Color change, Blue/Red  ", 13
+                byte      "[X] Reset count             ", 13
+                byte      13
+                byte      "Count: ", 13                         ' location = 7, 11
+                byte      13
+
+
+var { globals }
+
+
+pub main() | k
+
+  setup()
+
+  wait_for_terminal(true)
+
+  if (twist.is_connected())                                     ' found?
+    twist.clear_interrupts()                                    ' yes, reset
+    twist.connect_color($00, $00, $00)
+    twist.set_color($00, $00, $00)
+    twist.set_count(0)
+    twist.set_limit(0)
+    term.str(@Menu)
+  else
+    term.str(string("Twist not detected."))
+    repeat
+      waitct(0)
+
+  repeat
+    term.fstr1(string("\002\007\011%d\011\r"), twist.get_count())
+    if (twist.is_pressed())
+      term.str(string("-- pressed "))                           ' show pressed status
+    else
+      term.tx(term.CLR_EOL)
+
+    k := term.rxtime(25)                                        ' get user input
+    case k
+      "r", "R" :                                                ' make shaft red
+        twist.connect_color(0, 0, 0)                            ' clear color changes
+        twist.set_rgb($FF_00_00)                                ' set new color
+
+      "g", "G" :                                                ' make shaft green
+        twist.connect_color(0, 0, 0)
+        twist.set_rgb($00_FF_00)
+
+      "b", "B" :                                                ' make shaft blue
+        twist.connect_color(0, 0, 0)
+        twist.set_rgb($00_00_FF)
+
+      "o", "O" :                                                ' all leds off
+        twist.connect_color(0, 0, 0)
+        twist.set_rgb($00_00_00)
+
+      "c", "C" :                                                ' enable color changing
+        twist.set_count(0)                                      ' reset count
+        twist.set_rgb($7F_00_7F)                                ' colors to middle
+        twist.connect_color(1, 0, -1)                           ' + = red, - = blue
+
+      "x", "X" :                                                ' clear count
+        twist.set_count(0)
+
+    term.rxflush()                                              ' clear key repeats
+
+
+pub setup()
+
+  twist.start(SCL, SDA, 100, twist.PU_NONE)                     ' 100kHz i2c, standard address
+
+  term.tstart(BR_TERM)                                          ' start terminal io
+
+
+pub wait_for_terminal(clear)
+
+  ' Download to RAM with F10
+  ' F12 to open PST
+  ' Click [Enable]
+  ' Press Enter
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    term.tx(term.CLS)
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

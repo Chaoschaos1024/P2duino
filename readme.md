@@ -91,4 +91,5 @@ The Propeller P2X8C4M64P (P2) is a multicore microcontroller with the performanc
 - Fractional PLL with 1..64 crystal divider → 1..1024 VCO multiplier → optional (1..15)*2 VCO post-divider
 - Internal ~20 kHz RC oscillator for low-power operation (130 µA)
 - Clock can be stopped for lowest power until reset (100 µA, due to leakage)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

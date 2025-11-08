@@ -1,0 +1,3 @@
+[submodule "example/p2-spin-standard-library"]
+	path = example/p2-spin-standard-library
+	url = https://github.com/avsa242/p2-spin-standard-library

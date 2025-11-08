@@ -4,7 +4,7 @@
 The Propeller P2X8C4M64P (P2) is a multicore microcontroller with the performance of an MPU, excelling at real-time analog and digital applications. Designed to help engineers achieve the fastest time to market, the P2’s highly flexible, deterministic hardware and development environment are free from the complication, expense and lead time associated with traditional FPGA-type development cycles.
 ## Key features
 - **Arduino shape like** Compatible with Arduino expansion boards
-- **Pins** 58 Smart pins
+- **Pins** 58 Smart pin
 - **8 cores** High performance
 - **SD** SD card support
 - **SPI Flash** Supports switching between spiflash and SD for booting.

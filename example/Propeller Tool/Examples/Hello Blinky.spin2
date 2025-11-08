@@ -3,16 +3,16 @@
 'This Propeller 2 application displays a hello message on-screen and
 'blinks an LED on the P2 EVAL board
 
-con  
+con
 
   _clkfreq = 160_000_000
 
 pub main()
   'Configure display
-  debug(`term message pos 200 500 size 12 4 textsize 40 rgbi8x)         
+  debug(`term message pos 200 500 size 12 4 textsize 40 rgbi8x)
 
   debug(`message 'Hello World!')            'Display "Hello World!" on computer screen
 
   repeat                                    'Loop forever...
-    pintoggle(56)                           '  Toggle I/O 56 (LED on P2 EVAL board)
+    pintoggle(8)                           '  Toggle I/O 56 (LED on P2 EVAL board)
     waitms(250)                             '  Wait 250 ms (1/4 sec)

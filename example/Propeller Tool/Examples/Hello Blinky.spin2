@@ -1,3 +1,21 @@
+{
+ ************************************************************************************************************
+ *                                                                                                          *
+ *  AUTO-RECOVER NOTICE: This file was automatically recovered from an earlier Propeller Tool session.      *
+ *                                                                                                          *
+ *  ORIGINAL FOLDER:     D:\desktop\My_design\p2x8c4m64p\example\Propeller Tool\Examples\                   *
+ *  TIME AUTO-SAVED:     11 hours, 26 minutes ago (2025/11/13 23:19:28)                                     *
+ *                                                                                                          *
+ *  OPTIONS:             1)  RESTORE THIS FILE by deleting these comments and selecting File -> Save.       *
+ *                           The existing file in the original folder will be replaced by this one.         *
+ *                                                                                                          *
+ *                           -- OR --                                                                       *
+ *                                                                                                          *
+ *                       2)  IGNORE THIS FILE by closing it without saving.                                 *
+ *                           This file will be discarded and the original will be left intact.              *
+ *                                                                                                          *
+ ************************************************************************************************************
+.}
 'Hello Blinky.spin2
 '
 'This Propeller 2 application displays a hello message on-screen and
@@ -14,5 +32,5 @@ pub main()
   debug(`message 'Hello World!')            'Display "Hello World!" on computer screen
 
   repeat                                    'Loop forever...
-    pintoggle(8)                           '  Toggle I/O 56 (LED on P2 EVAL board)
-    waitms(250)                             '  Wait 250 ms (1/4 sec)
+    pintoggle(56)                           '  Toggle I/O 56 (LED on P2 EVAL board)
+    waitms(250)                             '  Wait 250ms (1/4sec)

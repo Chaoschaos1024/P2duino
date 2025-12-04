@@ -1,3 +1,21 @@
+{
+ ************************************************************************************************************
+ *                                                                                                          *
+ *  AUTO-RECOVER NOTICE: This file was automatically recovered from an earlier Propeller Tool session.      *
+ *                                                                                                          *
+ *  ORIGINAL FOLDER:     D:\desktop\My_design\p2x8c4m64p\example\Propeller Tool\Examples\                   *
+ *  TIME AUTO-SAVED:     11 hours, 26 minutes ago (2025/11/13 23:19:28)                                     *
+ *                                                                                                          *
+ *  OPTIONS:             1)  RESTORE THIS FILE by deleting these comments and selecting File -> Save.       *
+ *                           The existing file in the original folder will be replaced by this one.         *
+ *                                                                                                          *
+ *                           -- OR --                                                                       *
+ *                                                                                                          *
+ *                       2)  IGNORE THIS FILE by closing it without saving.                                 *
+ *                           This file will be discarded and the original will be left intact.              *
+ *                                                                                                          *
+ ************************************************************************************************************
+.}
 CON _clkfreq = 100_000_000
     DEBUG_DISPLAY_TOP = -100
 
@@ -15,7 +33,7 @@ PUB go() | i
   debug(`bitmap k title 'HSV16W' pos 370 985 size 256 256 trace 4 hsv16w)
   debug(`bitmap l title 'HSV16X' pos 640 985 size 256 256 trace 4 hsv16x `dly(1000))
 
-  repeat i from 0 to 255			'feed 8-bit displays
+  repeat i from 0 to 255                        'feed 8-bit displays
     debug(`a b c d e f g h i `uhex_(i))
-  repeat i from 0 to 65535			'feed 16-bit displays
+  repeat i from 0 to 65535                      'feed 16-bit displays
     debug(`j k l `uhex_(i))

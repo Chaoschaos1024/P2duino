@@ -1,0 +1,22 @@
+CON
+  _clkfreq = 160_000_000
+
+  PWM_PIN = 46
+  PWM_FREQ = 1000
+  PWM_DUTY = 50
+
+VAR
+  long duty_ticks
+  long period_ticks
+
+PUB main()
+  setup_pwm(PWM_PIN, PWM_FREQ, PWM_DUTY)
+  repeat
+    waitms(1000)
+
+PUB setup_pwm(pin, freq, duty) | mode
+  period_ticks := clkfreq / freq
+  duty_ticks := (period_ticks * duty) / 100
+
+  mode := (%00110 << 24) | (1 << 6)
+  pinstart(pin, mode, period_ticks, duty_ticks)

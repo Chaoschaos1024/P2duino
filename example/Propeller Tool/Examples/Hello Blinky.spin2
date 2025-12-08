@@ -27,10 +27,13 @@ con
 
 pub main()
   'Configure display
+  pinwrite(56,1)
+  pinwrite(57,0)
   debug(`term message pos 200 500 size 12 4 textsize 40 rgbi8x)
 
   debug(`message 'Hello World!')            'Display "Hello World!" on computer screen
 
   repeat                                    'Loop forever...
     pintoggle(56)                           '  Toggle I/O 56 (LED on P2 EVAL board)
+    pintoggle(57)                           '  Toggle I/O 57 (LED on P2 EVAL board)
     waitms(250)                             '  Wait 250ms (1/4sec)

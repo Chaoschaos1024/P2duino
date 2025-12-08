@@ -1,0 +1,4 @@
+PUB main()
+  REPEAT
+  PINWRITE(7..0,GETRND())
+  WAITMS(100)

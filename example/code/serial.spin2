@@ -1,0 +1,21 @@
+CON
+  _clkfreq = 160_000_000
+
+  IO_PIN    = 46
+  UART_TX   = 62
+  UART_RX   = 63
+  BAUD_RATE = 115_200
+
+VAR
+  long serial
+
+PUB main()
+  ' Start serial driver (Full Duplex Serial)
+  serial := fdserial.start(UART_RX, UART_TX, 0, BAUD_RATE)
+
+  repeat
+    fdserial.tx(serial, 13)  ' carriage return
+    fdserial.tx(serial, 10)  ' line feed
+    fdserial.str(serial, string("P46: "))
+    fdserial.dec(serial, pinread(IO_PIN))
+    waitms(500)

@@ -2,7 +2,7 @@
  * @Author: 无序熵增
  * @Date: 2025-11-04 09:47:54
  * @LastEditors: 无序熵增
- * @LastEditTime: 2025-12-18 19:11:27
+ * @LastEditTime: 2025-12-18 22:10:54
  * @Description: 
  * 
  * Copyright (c) 2025 by 无序熵增, All Rights Reserved. 
@@ -15,6 +15,7 @@
 [![English](https://img.shields.io/badge/English-blue?style=for-the-badge)](readme.en.md)
 
 </div>
+
 # P2DUINO —— Arduino 外形的 P2X8C4M64P 开发板
 ![P2DUINO Board](picture/front.jpg) <!-- 板子正面图片 -->
 

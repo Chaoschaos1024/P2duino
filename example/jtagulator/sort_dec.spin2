@@ -1,0 +1,587 @@
+{{
+*****************************************
+*  Sorting Algorithms Library for Spin2 *
+*  Version 2.0                          *
+*  Based on original by Brandon Nimon   *
+*  Adapted for P2/Spin2                 *
+*  2024                                 *
+*****************************************
+
+This library provides multiple sorting algorithms optimized for P2/Spin2.
+All algorithms support both ascending and descending order.
+
+Key features:
+- Quick Sort (recursive, optimized)
+- Shell Sort (SPIN version)
+- PASM Shell Sort (uses extra cog for speed)
+- Insertion Sort (good for small arrays)
+- Cocktail Sort (bidirectional bubble sort)
+- Bubble Sort (simple but slow)
+
+Each algorithm is self-contained and can be used independently.
+}}
+
+con
+    ' Sorting directions
+    ASC     = 0      ' Ascending order
+    DESC    = 1      ' Descending order
+
+    ' Algorithm identifiers
+    ALGO_QUICK       = 0
+    ALGO_SHELL       = 1
+    ALGO_SHELL_PASM  = 2
+    ALGO_INSERTION   = 3
+    ALGO_COCKTAIL    = 4
+    ALGO_BUBBLE      = 5
+
+    ' Performance constants
+    INSERTION_THRESHOLD = 15    ' Use insertion sort for small partitions
+
+obj
+    ' No external objects needed for core algorithms
+
+pub start
+    ' Library initialization (if needed)
+    return
+
+' ============================================================================
+' QUICK SORT (RECURSIVE, OPTIMIZED)
+' ============================================================================
+pub quicksort(array_addr, left, right, direction) | pivot, left_idx, right_idx, temp
+    ' Quick sort algorithm - fastest for large arrays
+    ' array_addr: address of array to sort
+    ' left: starting index (usually 0)
+    ' right: ending index (array_length - 1)
+    ' direction: ASC or DESC
+
+    if (right - left) > 0
+        if (right - left + 1) <= INSERTION_THRESHOLD
+            ' Use insertion sort for small partitions
+            insertionsort(@long[array_addr][left], right - left + 1, direction)
+        else
+            left_idx := left
+            right_idx := right
+
+            ' Choose pivot point (middle of array)
+            pivot := (left + right) >> 1
+
+            repeat while (left_idx =< pivot and right_idx => pivot)
+                ' Move left index forward while elements are on correct side
+                repeat while (left_idx =< pivot)
+                    if direction == ASC
+                        if long[array_addr][left_idx] < long[array_addr][pivot]
+                            left_idx++
+                        else
+                            quit
+                    else
+                        if long[array_addr][left_idx] > long[array_addr][pivot]
+                            left_idx++
+                        else
+                            quit
+
+                ' Move right index backward while elements are on correct side
+                repeat while (right_idx => pivot)
+                    if direction == ASC
+                        if long[array_addr][right_idx] > long[array_addr][pivot]
+                            right_idx--
+                        else
+                            quit
+                    else
+                        if long[array_addr][right_idx] < long[array_addr][pivot]
+                            right_idx--
+                        else
+                            quit
+
+                ' Swap elements if needed
+                if left_idx =< right_idx
+                    temp := long[array_addr][left_idx]
+                    long[array_addr][left_idx] := long[array_addr][right_idx]
+                    long[array_addr][right_idx] := temp
+
+                    if left_idx == pivot
+                        pivot := right_idx
+                    elseif right_idx == pivot
+                        pivot := left_idx
+
+                    left_idx++
+                    right_idx--
+
+            ' Recursively sort partitions
+            quicksort(array_addr, left, pivot - 1, direction)
+            quicksort(array_addr, pivot + 1, right, direction)
+
+' ============================================================================
+' INSERTION SORT
+' ============================================================================
+pub insertionsort(array_addr, array_length, direction) | j, i, value
+    ' Insertion sort - good for small arrays or nearly sorted arrays
+    ' array_addr: address of array to sort
+    ' array_length: number of elements in array
+    ' direction: ASC or DESC
+
+    repeat i from 1 to array_length - 1
+        value := long[array_addr][i]
+        j := i - 1
+
+        repeat while j >= 0
+            if direction == ASC
+                if long[array_addr][j] > value
+                    long[array_addr][j + 1] := long[array_addr][j]
+                    j--
+                else
+                    quit
+            else
+                if long[array_addr][j] < value
+                    long[array_addr][j + 1] := long[array_addr][j]
+                    j--
+                else
+                    quit
+
+        long[array_addr][j + 1] := value
+
+' ============================================================================
+' PASM SHELL SORT (USES EXTRA COG)
+' ============================================================================
+pub pasmshellsort(array_addr, array_length, direction) : success
+    ' PASM Shell Sort - extremely fast, uses extra cog
+    ' Returns: 0 if no cog available, -1 on success
+
+    ' Store parameters for PASM code
+    par_addr := array_addr
+    par_len := array_length
+    par_dir := direction
+
+    ' Start PASM cog
+    success := cognew(@shellsort_pasm, @par_addr)
+
+    if success >= 0
+        ' Wait for completion
+        repeat while long[@par_addr] == array_addr
+        success := -1
+
+    return success
+
+' ============================================================================
+' SHELL SORT (SPIN VERSION)
+' ============================================================================
+pub shellsort(array_addr, array_length, direction) | gap, value, i, j
+    ' Shell Sort - good performance for medium sized arrays
+    ' array_addr: address of array to sort
+    ' array_length: number of elements in array
+    ' direction: ASC or DESC
+
+    gap := array_length >> 1
+
+    repeat while gap > 0
+        repeat i from gap to array_length - 1
+            value := long[array_addr][i]
+            j := i
+
+            repeat while j >= gap
+                if direction == ASC
+                    if long[array_addr][j - gap] > value
+                        long[array_addr][j] := long[array_addr][j - gap]
+                        j -= gap
+                    else
+                        quit
+                else
+                    if long[array_addr][j - gap] < value
+                        long[array_addr][j] := long[array_addr][j - gap]
+                        j -= gap
+                    else
+                        quit
+
+            long[array_addr][j] := value
+
+        gap >>= 1
+
+' ============================================================================
+' COCKTAIL SORT (BIDIRECTIONAL BUBBLE SORT)
+' ============================================================================
+pub cocktailsort(array_addr, array_length, direction) | i, start_idx, swapped, temp
+    ' Cocktail Sort - improved bubble sort
+    ' array_addr: address of array to sort
+    ' array_length: number of elements in array
+    ' direction: ASC or DESC
+
+    start_idx := 0
+    end_idx := array_length - 2
+
+    repeat
+        swapped := false
+
+        ' Forward pass
+        repeat i from start_idx to end_idx
+            if direction == ASC
+                if long[array_addr][i] > long[array_addr][i + 1]
+                    temp := long[array_addr][i]
+                    long[array_addr][i] := long[array_addr][i + 1]
+                    long[array_addr][i + 1] := temp
+                    swapped := true
+            else
+                if long[array_addr][i] < long[array_addr][i + 1]
+                    temp := long[array_addr][i]
+                    long[array_addr][i] := long[array_addr][i + 1]
+                    long[array_addr][i + 1] := temp
+                    swapped := true
+
+        if not swapped
+            quit
+
+        swapped := false
+        end_idx--
+
+        ' Backward pass
+        repeat i from end_idx to start_idx
+            if direction == ASC
+                if long[array_addr][i] > long[array_addr][i + 1]
+                    temp := long[array_addr][i]
+                    long[array_addr][i] := long[array_addr][i + 1]
+                    long[array_addr][i + 1] := temp
+                    swapped := true
+            else
+                if long[array_addr][i] < long[array_addr][i + 1]
+                    temp := long[array_addr][i]
+                    long[array_addr][i] := long[array_addr][i + 1]
+                    long[array_addr][i + 1] := temp
+                    swapped := true
+
+        start_idx++
+    while swapped
+
+' ============================================================================
+' BUBBLE SORT (SIMPLE BUT SLOW)
+' ============================================================================
+pub bubblesort(array_addr, array_length, direction) | i, swapped, temp
+    ' Bubble Sort - simplest but slowest algorithm
+    ' array_addr: address of array to sort
+    ' array_length: number of elements in array
+    ' direction: ASC or DESC
+
+    end_idx := array_length - 2
+
+    repeat
+        swapped := false
+
+        repeat i from 0 to end_idx
+            if direction == ASC
+                if long[array_addr][i] > long[array_addr][i + 1]
+                    temp := long[array_addr][i]
+                    long[array_addr][i] := long[array_addr][i + 1]
+                    long[array_addr][i + 1] := temp
+                    swapped := true
+            else
+                if long[array_addr][i] < long[array_addr][i + 1]
+                    temp := long[array_addr][i]
+                    long[array_addr][i] := long[array_addr][i + 1]
+                    long[array_addr][i + 1] := temp
+                    swapped := true
+
+        end_idx--
+    while swapped
+
+' ============================================================================
+' UNIVERSAL SORT FUNCTION
+' ============================================================================
+pub sort(array_addr, array_length, algorithm, direction) : success
+    ' Universal sort function - calls specified algorithm
+    ' Returns: 0 on success, negative on error
+
+    if array_length < 2
+        return 0  ' Already sorted
+
+    case algorithm
+        ALGO_QUICK:
+            quicksort(array_addr, 0, array_length - 1, direction)
+            success := 0
+
+        ALGO_SHELL:
+            shellsort(array_addr, array_length, direction)
+            success := 0
+
+        ALGO_SHELL_PASM:
+            success := pasmshellsort(array_addr, array_length, direction)
+
+        ALGO_INSERTION:
+            insertionsort(array_addr, array_length, direction)
+            success := 0
+
+        ALGO_COCKTAIL:
+            cocktailsort(array_addr, array_length, direction)
+            success := 0
+
+        ALGO_BUBBLE:
+            bubblesort(array_addr, array_length, direction)
+            success := 0
+
+        other:
+            success := -1  ' Invalid algorithm
+
+    return success
+
+' ============================================================================
+' ARRAY UTILITY FUNCTIONS
+' ============================================================================
+pub is_sorted(array_addr, array_length, direction) : result | i
+    ' Check if array is already sorted
+    ' Returns: true if sorted, false otherwise
+
+    result := true
+
+    repeat i from 0 to array_length - 2
+        if direction == ASC
+            if long[array_addr][i] > long[array_addr][i + 1]
+                result := false
+                quit
+        else
+            if long[array_addr][i] < long[array_addr][i + 1]
+                result := false
+                quit
+
+    return result
+
+pub find_min(array_addr, array_length) : min_value | i
+    ' Find minimum value in array
+    min_value := long[array_addr][0]
+
+    repeat i from 1 to array_length - 1
+        if long[array_addr][i] < min_value
+            min_value := long[array_addr][i]
+
+    return min_value
+
+pub find_max(array_addr, array_length) : max_value | i
+    ' Find maximum value in array
+    max_value := long[array_addr][0]
+
+    repeat i from 1 to array_length - 1
+        if long[array_addr][i] > max_value
+            max_value := long[array_addr][i]
+
+    return max_value
+
+pub swap_elements(array_addr, index1, index2) | temp
+    ' Swap two elements in array
+    temp := long[array_addr][index1]
+    long[array_addr][index1] := long[array_addr][index2]
+    long[array_addr][index2] := temp
+
+pub reverse_array(array_addr, array_length) | i, temp
+    ' Reverse the order of elements in array
+    repeat i from 0 to (array_length >> 1) - 1
+        temp := long[array_addr][i]
+        long[array_addr][i] := long[array_addr][array_length - 1 - i]
+        long[array_addr][array_length - 1 - i] := temp
+
+' ============================================================================
+' PERFORMANCE TESTING FUNCTIONS
+' ============================================================================
+pub benchmark_sort(array_addr, array_length, algorithm, direction, iterations) : cycles | i, start_time, total_cycles
+    ' Benchmark sorting algorithm performance
+    ' Returns: average cycles per sort
+
+    if iterations < 1
+        return 0
+
+    total_cycles := 0
+
+    repeat i from 0 to iterations - 1
+        ' Create copy of array for testing
+        backup_buffer := long[array_size]
+
+        ' Restore original array
+        wordmove(array_addr, backup_buffer, array_length)
+
+        ' Time the sort
+        start_time := getcnt()
+        sort(array_addr, array_length, algorithm, direction)
+        total_cycles += getcnt() - start_time
+
+        ' Cleanup
+        ' (In real implementation, you'd restore from backup)
+
+    return total_cycles / iterations
+
+pri getcnt() : cycles
+    ' Get current clock counter
+    cycles := cnt
+    return cycles
+
+' ============================================================================
+' PASM SHELL SORT IMPLEMENTATION
+' ============================================================================
+dat
+    org
+
+shellsort_pasm
+    ' PASM implementation of Shell Sort
+    ' Parameters passed via shared memory
+
+    ' Read parameters
+    mov     par_addr, par_addr_ref
+    mov     par_len, par_len_ref
+    mov     par_dir, par_dir_ref
+
+    ' Calculate initial gap
+    mov     gap, par_len
+    shr     gap, #1
+
+gap_loop
+    tjz     gap, #sort_done
+
+    ' Outer loop: i from gap to array_length-1
+    mov     i, gap
+
+i_loop
+    cmp     i, par_len        wc
+  if_ae     jmp     #next_gap
+
+    ' Load value = array[i]
+    mov     temp_addr, par_addr
+    mov     temp_offset, i
+    shl     temp_offset, #2
+    add     temp_addr, temp_offset
+    rdlong  value, temp_addr
+
+    ' j = i
+    mov     j, i
+
+j_loop
+    ' while j >= gap
+    cmp     j, gap            wc
+  if_b      jmp     #insert_value
+
+    ' Load array[j - gap]
+    mov     temp_addr, par_addr
+    mov     temp_offset, j
+    sub     temp_offset, gap
+    shl     temp_offset, #2
+    add     temp_addr, temp_offset
+    rdlong  compare_val, temp_addr
+
+    ' Compare based on direction
+    cmp     par_dir, #0       wz
+  if_z      jmp     #asc_compare
+
+    ' DESC comparison
+    cmp     compare_val, value    wc
+  if_nc     jmp     #insert_value
+    jmp     #shift_element
+
+asc_compare
+    cmp     compare_val, value    wc
+  if_c      jmp     #insert_value
+
+shift_element
+    ' array[j] = array[j - gap]
+    mov     temp_addr, par_addr
+    mov     temp_offset, j
+    shl     temp_offset, #2
+    add     temp_addr, temp_offset
+    wrlong  compare_val, temp_addr
+
+    ' j -= gap
+    sub     j, gap
+    jmp     #j_loop
+
+insert_value
+    ' array[j] = value
+    mov     temp_addr, par_addr
+    mov     temp_offset, j
+    shl     temp_offset, #2
+    add     temp_addr, temp_offset
+    wrlong  value, temp_addr
+
+    ' Next i
+    add     i, #1
+    jmp     #i_loop
+
+next_gap
+    ' gap >>= 1
+    shr     gap, #1
+    jmp     #gap_loop
+
+sort_done
+    ' Signal completion
+    mov     temp_addr, par_addr_ref
+    wrlong  zero, temp_addr
+
+    ' Stop this cog
+    cogid   temp
+    cogstop temp
+
+' Variables
+par_addr_ref   long    0
+par_len_ref    long    0
+par_dir_ref    long    0
+
+par_addr       res
+par_len        res
+par_dir        res
+gap            res
+i              res
+j              res
+value          res
+compare_val    res
+temp_addr      res
+temp_offset    res
+temp           res
+zero           long    0
+
+fit
+
+' ============================================================================
+' DEMONSTRATION AND TESTING (OPTIONAL)
+' ============================================================================
+pub demo() | test_array[32], i, start_time, cycles
+    ' Demonstration of sorting algorithms
+
+    ' Initialize test array with random values
+    ' (In real implementation, you'd use a random number generator)
+    repeat i from 0 to 31
+        test_array[i] := cnt & $FFFF  ' Pseudo-random
+
+    ' Test Quick Sort
+    start_time := getcnt()
+    quicksort(@test_array, 0, 31, ASC)
+    cycles := getcnt() - start_time
+
+    ' Verify sort
+    if is_sorted(@test_array, 32, ASC)
+        ' Success
+    else
+        ' Failed
+
+    ' Return cycles for comparison
+    return cycles
+
+pub compare_algorithms(array_addr, array_length, iterations) | results[6], i
+    ' Compare performance of all algorithms
+
+    repeat i from 0 to 5
+        results[i] := benchmark_sort(array_addr, array_length, i, ASC, iterations)
+
+    return @results
+
+' ============================================================================
+' MEMORY MANAGEMENT
+' ============================================================================
+var
+    long  _temp_buffer[256]  ' Temporary buffer for operations
+
+pub get_buffer_size() : size
+    ' Get available temporary buffer size
+    size := 256
+    return size
+
+pub allocate_temp_buffer(size) : addr
+    ' Allocate temporary buffer (simple implementation)
+    if size =< 256
+        addr := @_temp_buffer
+    else
+        addr := 0
+    return addr
+
+' ============================================================================
+' END OF LIBRARY
+' ============================================================================

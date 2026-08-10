@@ -1,0 +1,42 @@
+src,dst,说明/备选翻译
+Spin2,Spin2,编程语言名称，保留原名
+Propeller 2,Propeller 2,芯片名称，保留原名
+Cog,Cog,处理器内核，保留原名
+PASM,Propeller汇编,Propeller Assembly
+PUB,公共函数,Public
+PRI,私有函数,Private
+VAR,变量,Variable
+CON,常量,Constant
+OBJ,对象,Object
+long,长整型,32位整数
+word,字,16位整数
+byte,字节,8位整数
+pin,引脚,I/O引脚
+clock,时钟,时钟信号
+frequency,频率,时钟频率
+counter,计数器,
+timer,定时器,
+hub,集线器,Hub，共享内存/总线
+RAM,内存,随机存取存储器
+ROM,只读存储器,
+I/O,输入/输出,Input/Output
+UART,串口,通用异步收发器
+SPI,SPI,串行外设接口，保留缩写
+I2C,I2C,集成电路总线，保留缩写
+DAC,数模转换器,Digital-to-Analog Converter
+ADC,模数转换器,Analog-to-Digital Converter
+PWM,脉宽调制,Pulse-Width Modulation
+interrupt,中断,
+register,寄存器,
+pointer,指针,
+array,数组,
+buffer,缓冲区,
+callback,回调,
+semaphore,信号量,
+thread,线程,
+multicore,多核,
+parallel,并行,
+debug,调试,
+firmware,固件,
+driver,驱动程序,
+library,库,

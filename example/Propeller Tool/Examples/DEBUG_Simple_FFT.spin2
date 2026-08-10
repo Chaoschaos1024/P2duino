@@ -1,4 +1,22 @@
 {
+ ************************************************************************************************************
+ *                                                                                                          *
+ *  AUTO-RECOVER NOTICE: This file was automatically recovered from an earlier Propeller Tool session.      *
+ *                                                                                                          *
+ *  ORIGINAL FOLDER:     D:\desktop\My_design\p2x8c4m64p\example\Propeller Tool\Examples\                   *
+ *  TIME AUTO-SAVED:     16 hours, 56 minutes ago (2026/3/9 21:05:27)                                       *
+ *                                                                                                          *
+ *  OPTIONS:             1)  RESTORE THIS FILE by deleting these comments and selecting File -> Save.       *
+ *                           The existing file in the original folder will be replaced by this one.         *
+ *                                                                                                          *
+ *                           -- OR --                                                                       *
+ *                                                                                                          *
+ *                       2)  IGNORE THIS FILE by closing it without saving.                                 *
+ *                           This file will be discarded and the original will be left intact.              *
+ *                                                                                                          *
+ ************************************************************************************************************
+.}
+
 CON _clkfreq    = 10_000_000
 
 PUB go() | a, af, b, bf, i
@@ -13,10 +31,10 @@ PUB go() | a, af, b, bf, i
     b := qsin(100, bf++, 63)
     debug(`MyScope `(a,b))
     'waitus(5000)
-}
 
 
-CON _clkfreq = 100_000_000
+
+{CON _clkfreq = 100_000_000
 
 PUB go() | i, j, k
 
@@ -25,15 +43,21 @@ PUB go() | i, j, k
   debug(`MyFFT 'FFT' 0 1000 180 10 15 YELLOW 14)
 
   ' Set up SCOPE
-  debug(`scope MyScope POS 300 0 SIZE 255 200 COLOR CYAN 4 CYAN 6 linesize 3)
-  debug(`MyScope 'Sine' -1000 1000 180 10 15 CYAN 14)
+  debug(`scope MyScope POS 300 0 SIZE 255 200 COLOR CYAN 4 CYAN 6 linesize 2)
+  debug(`MyScope 'Sine' -1000 1000 180 10 15 BLUE 14)
   debug(`MyScope TRIGGER 0)
+
+  pinwrite(56,1)
+  pinwrite(57,0)
 
   repeat
     j += 1550 + qsin(1300, i++, 31_000)
     k := qsin(1000, j, 50_000)
     debug(`MyFFT MyScope `(k))
+    pintoggle(56)                           '  Toggle I/O 56 (LED on P2 EVAL board)
+    pintoggle(57)                           '  Toggle I/O 57 (LED on P2 EVAL board)
     waitus(100)
+  }
 
 
 {
@@ -56,9 +80,10 @@ PUB go() | i, j, k,t
       k := qsin(1000, j, 50_000)
       debug(`MySpectro MyScope `(k))
     waitct(t += clkfreq)
-}
+    }
 
-{               _clkfreq        = 320_000_000
+
+{ _clkfreq        = 320_000_000
 
 PUB go() | i, j, w, x, t
 
@@ -86,8 +111,7 @@ PUB go() | i, j, w, x, t
     if i & $FF == 0
       waitms(10)
 
-}
-
+   }
 
 
 
